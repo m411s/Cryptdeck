@@ -344,7 +344,9 @@ mod tests {
         assert!(parse_list("No volumes mounted.\n\n").is_empty());
     }
 
+    // Uses Unix paths; the veracrypt CLI backend targets Linux and macOS.
     #[test]
+    #[cfg(unix)]
     fn mount_args_never_contain_password() {
         let req = MountRequest {
             volume: "/vols/a.hc".into(),
@@ -368,6 +370,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn mount_args_defaults_avoid_prompts() {
         let req = MountRequest {
             volume: "/vols/a.hc".into(),

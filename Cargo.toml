@@ -6,7 +6,7 @@ members = ["crates/cryptdeck-core", "crates/cryptdeck-gui"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/cryptdeck/cryptdeck"
+repository = "https://github.com/m411s/Cryptdeck"
 rust-version = "1.85"
 
 [workspace.dependencies]
