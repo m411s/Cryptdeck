@@ -301,6 +301,7 @@ fn is_root() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use secrecy::SecretString;
 
     #[test]
