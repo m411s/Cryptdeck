@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["crates/cryptdeck-core", "crates/cryptdeck-gui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cryptdeck/cryptdeck"
+rust-version = "1.85"
+
+[workspace.dependencies]
+cryptdeck-core = { path = "crates/cryptdeck-core" }
+secrecy = "0.10"
+zeroize = "1.8"
+thiserror = "2"

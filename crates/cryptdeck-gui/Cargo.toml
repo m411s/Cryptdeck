@@ -1,0 +1,19 @@
+[package]
+name = "cryptdeck"
+description = "A cross-platform desktop GUI for VeraCrypt volumes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "cryptdeck"
+path = "src/main.rs"
+
+[dependencies]
+cryptdeck-core.workspace = true
+secrecy.workspace = true
+zeroize.workspace = true
+iced = "0.14"
+rfd = "0.18"
