@@ -38,6 +38,11 @@ only talks to that trait.
   `veracrypt` through `pkexec`, which shows your desktop's polkit password
   dialog. A dedicated, narrowly scoped helper with its own polkit policy is
   on the roadmap.
+- Before running anything as root, Cryptdeck checks that the `veracrypt`
+  binary and its folder are owned by root and not writable by other users,
+  so a program running as you can't plant a fake `veracrypt` (for example in
+  `~/.local/bin`) and gain root the next time you authenticate. `pkexec` is
+  only ever taken from `/usr/bin` or `/bin`, never from your `PATH`.
 
 ## Building
 
@@ -64,7 +69,7 @@ CRYPTDECK_BACKEND=mock cargo run
 | Variable | Effect |
 | --- | --- |
 | `CRYPTDECK_BACKEND=mock` | Use the in-memory demo backend |
-| `CRYPTDECK_VERACRYPT=/path/to/veracrypt` | Use a specific `veracrypt` binary |
+| `CRYPTDECK_VERACRYPT=/path/to/veracrypt` | Use a specific `veracrypt` binary (it must be root-owned to mount) |
 
 ## Layout
 

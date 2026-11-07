@@ -11,6 +11,14 @@ pub enum Error {
     #[error("Administrator authentication was cancelled or denied")]
     AuthCancelled,
 
+    #[error(
+        "Refusing to run {} as administrator: it and its folder must be owned by root \
+         and not writable by other users. Install VeraCrypt system-wide, or point \
+         CRYPTDECK_VERACRYPT at a root-owned copy.",
+        .0.display()
+    )]
+    UntrustedBinary(std::path::PathBuf),
+
     #[error("{0}")]
     CommandFailed(String),
 

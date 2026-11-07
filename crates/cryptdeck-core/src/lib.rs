@@ -13,7 +13,7 @@ pub mod veracrypt;
 
 pub use backend::Backend;
 pub use error::{Error, Result};
-pub use types::{MountRequest, MountedVolume, MAX_PIM};
+pub use types::{MountRequest, MountedVolume, MAX_PASSWORD_BYTES, MAX_PIM};
 
 use std::sync::Arc;
 

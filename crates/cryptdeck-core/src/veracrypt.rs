@@ -69,16 +69,30 @@ impl VeraCryptCli {
     /// Build a command, optionally elevated.
     fn command(&self, elevated: bool) -> Result<Command> {
         let binary = self.resolve_binary()?;
-        if elevated && self.elevation == Elevation::Pkexec {
-            let pkexec = find_executable(OsStr::new("pkexec"))
-                .ok_or_else(|| Error::NotInstalled("pkexec (polkit)".into()))?;
-            let mut cmd = Command::new(pkexec);
-            // pkexec requires an absolute program path.
-            cmd.arg(binary);
-            Ok(cmd)
+        let mut cmd = if elevated && (self.elevation == Elevation::Pkexec || is_root()) {
+            // This binary is about to run as root, so make sure nobody but
+            // root could have replaced it (e.g. a copy in ~/.local/bin).
+            let binary = binary.canonicalize()?;
+            ensure_root_owned(&binary)?;
+            if self.elevation == Elevation::Pkexec {
+                let pkexec = TRUSTED_PKEXEC
+                    .iter()
+                    .map(Path::new)
+                    .find(|p| is_executable(p))
+                    .ok_or_else(|| Error::NotInstalled("pkexec (polkit)".into()))?;
+                let mut cmd = Command::new(pkexec);
+                // pkexec requires an absolute program path.
+                cmd.arg(binary);
+                cmd
+            } else {
+                Command::new(binary)
+            }
         } else {
-            Ok(Command::new(binary))
-        }
+            Command::new(binary)
+        };
+        // Keep messages in English so they can be matched reliably.
+        cmd.env("LC_ALL", "C");
+        Ok(cmd)
     }
 
     fn run(&self, elevated: bool, args: &[OsString], stdin: Option<&[u8]>) -> Result<Output> {
@@ -245,6 +259,13 @@ fn parse_list_line(line: &str) -> Option<MountedVolume> {
     })
 }
 
+/// Where to look for pkexec. Never taken from PATH, since it decides what
+/// runs as root.
+const TRUSTED_PKEXEC: &[&str] = &["/usr/bin/pkexec", "/bin/pkexec"];
+
+/// Longest error message passed on to the user, in characters.
+const MAX_ERROR_CHARS: usize = 600;
+
 /// Turn a failed command's output into a short message for the user.
 fn error_message(output: &Output) -> String {
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -259,15 +280,46 @@ fn error_message(output: &Output) -> String {
     if text.is_empty() {
         format!("veracrypt exited with {}", output.status)
     } else {
-        text.to_owned()
+        truncate(text, MAX_ERROR_CHARS)
     }
+}
+
+fn truncate(text: &str, max_chars: usize) -> String {
+    match text.char_indices().nth(max_chars) {
+        Some((cut, _)) => format!("{}…", &text[..cut]),
+        None => text.to_owned(),
+    }
+}
+
+/// Refuse to run a binary as root unless it, and the directory holding it,
+/// are owned by root and not writable by anyone else.
+#[cfg(unix)]
+fn ensure_root_owned(binary: &Path) -> Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    let trusted = |p: &Path| {
+        p.metadata()
+            .map(|m| m.uid() == 0 && m.mode() & 0o022 == 0)
+            .unwrap_or(false)
+    };
+    let dir_ok = binary.parent().is_some_and(trusted);
+    if trusted(binary) && dir_ok {
+        Ok(())
+    } else {
+        Err(Error::UntrustedBinary(binary.to_path_buf()))
+    }
+}
+
+#[cfg(not(unix))]
+fn ensure_root_owned(_binary: &Path) -> Result<()> {
+    Ok(())
 }
 
 /// Locate an executable on PATH (or accept an explicit path).
 fn find_executable(name: &OsStr) -> Option<PathBuf> {
     let candidate = Path::new(name);
     if candidate.components().count() > 1 {
-        return candidate.is_file().then(|| candidate.to_path_buf());
+        return is_executable(candidate).then(|| candidate.to_path_buf());
     }
     std::env::split_paths(&std::env::var_os("PATH")?)
         .map(|dir| dir.join(name))
@@ -338,6 +390,30 @@ mod tests {
         );
         assert_eq!(vols[0].mount_point, None);
         assert_eq!(vols[1].mount_point, None);
+    }
+
+    #[test]
+    fn truncates_long_errors_on_char_boundaries() {
+        assert_eq!(truncate("short", 10), "short");
+        assert_eq!(truncate("ééééé", 3), "ééé…");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_untrusted_binaries() {
+        // Either not owned by root, or in a world-writable folder (/tmp).
+        let path = std::env::temp_dir().join(format!("cryptdeck-test-{}", std::process::id()));
+        std::fs::write(&path, b"").unwrap();
+        let result = ensure_root_owned(&path);
+        std::fs::remove_file(&path).unwrap();
+        assert!(matches!(result, Err(Error::UntrustedBinary(_))));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn accepts_system_binaries() {
+        let sh = Path::new("/bin/sh").canonicalize().unwrap();
+        ensure_root_owned(&sh).unwrap();
     }
 
     #[test]
