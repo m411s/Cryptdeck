@@ -106,13 +106,20 @@ packaging/          AppImage, macOS .app/.dmg, and release notes
 ## Releasing
 
 1. Update `version` in the root `Cargo.toml`, run `cargo build` to update
-   `Cargo.lock`, and commit.
-2. Tag the commit and push the tag:
+   `Cargo.lock`, and commit to `main`.
+2. Start the release, either way:
+   - **From GitHub:** open **Actions → Release → Run workflow**, keep the
+     branch on `main`, enter the version (e.g. `0.2.0`) and choose
+     **Run workflow**. The workflow creates the tag `v0.2.0` itself.
+   - **From the command line:** tag the commit and push the tag:
 
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
+     ```bash
+     git tag -a v0.2.0 -m "Cryptdeck 0.2.0"
+     ```
+
+     ```bash
+     git push origin v0.2.0
+     ```
 
 The `Release` workflow then builds every platform and publishes a GitHub
 Release with these files and a `SHA256SUMS.txt`:
@@ -124,10 +131,12 @@ Release with these files and a `SHA256SUMS.txt`:
 | `Cryptdeck-<version>-macos-universal.dmg` | macOS 11+, Apple Silicon and Intel, ad-hoc signed |
 | `Cryptdeck-<version>-windows-x86_64.zip` | Windows 10+, unsigned |
 
-The tag must match the version in `Cargo.toml`, or the workflow stops. A tag
-with a hyphen (`v0.2.0-beta.1`) is published as a pre-release. Pushes that
-change `packaging/`, `assets/` or the workflow itself run the same builds
-without publishing, and leave the files as workflow artifacts.
+The version must match `Cargo.toml` and must not have been released before,
+or the workflow stops before building. A version with a hyphen
+(`0.2.0-beta.1`) is published as a pre-release. Running the workflow without
+a version, or pushing changes to `packaging/`, `assets/` or the workflow
+itself, runs the same builds without publishing and leaves the files as
+workflow artifacts.
 
 ## Roadmap
 

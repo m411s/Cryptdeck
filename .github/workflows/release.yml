@@ -1,8 +1,11 @@
 name: Release
 
-# Pushing a tag like v0.2.0 builds every platform and publishes a GitHub
-# Release. Pushes that touch packaging (and manual runs) do a dry run: the
-# same builds, uploaded as workflow artifacts, with nothing published.
+# Builds every platform and publishes a GitHub Release when either:
+# - you run this workflow from the Actions tab on main and enter a version
+#   (it creates the tag v<version> itself), or
+# - you push a tag like v0.2.0.
+# Manual runs without a version, and pushes that touch packaging, do a dry
+# run: the same builds, uploaded as workflow artifacts, nothing published.
 on:
   push:
     tags: ["v*"]
@@ -14,6 +17,13 @@ on:
       - "assets/**"
       - "crates/cryptdeck-gui/build.rs"
   workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Version to release, e.g. 0.2.0 (must match Cargo.toml). Leave empty
+          for a test build that publishes nothing.
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -26,20 +36,42 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
       - id: v
+        env:
+          # Passed through the environment, never pasted into the script.
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
+          fail() { echo "::error::$1"; exit 1; }
           cargo_version=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "cryptdeck") | .version')
+
+          tag=""
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            if [[ "$GITHUB_REF_NAME" != "v$cargo_version" ]]; then
-              echo "::error::Tag $GITHUB_REF_NAME doesn't match Cargo version $cargo_version"
-              exit 1
+            tag=$GITHUB_REF_NAME
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            [[ "$GITHUB_REF" == refs/heads/main ]] \
+              || fail "Releases can only be made from main (this run is on $GITHUB_REF_NAME)"
+            tag="v${INPUT_VERSION#v}"
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+              fail "Tag $tag already exists. Bump the version in Cargo.toml first."
             fi
-            echo "version=$cargo_version" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ -n "$tag" ]]; then
+            [[ "$tag" == "v$cargo_version" ]] \
+              || fail "Version $tag doesn't match Cargo.toml ($cargo_version)"
+            {
+              echo "version=$cargo_version"
+              echo "tag=$tag"
+              echo "publish=true"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "version=$cargo_version-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
   linux:
@@ -115,7 +147,7 @@ jobs:
           path: dist/*
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.version.outputs.publish == 'true'
     needs: [version, linux, macos, windows]
     runs-on: ubuntu-latest
     permissions:
@@ -130,7 +162,11 @@ jobs:
         run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
+          # Creates the tag on this commit when it doesn't exist yet.
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Cryptdeck ${{ needs.version.outputs.version }}
           files: dist/*
           body_path: packaging/release-notes.md
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(needs.version.outputs.tag, '-') }}
