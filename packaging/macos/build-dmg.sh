@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Package a (universal) release build of Cryptdeck as a macOS .app in a .dmg.
+# Runs on macOS only (uses sips, iconutil, codesign and hdiutil).
+#
+#   packaging/macos/build-dmg.sh <cryptdeck-binary> <version> [output-dir]
+set -euo pipefail
+
+bin=$1
+version=$2
+out=${3:-dist}
+
+root=$(cd "$(dirname "$0")/../.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+app="$work/dmg/Cryptdeck.app"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+install -m 755 "$bin" "$app/Contents/MacOS/cryptdeck"
+
+# CFBundleShortVersionString must be numeric, e.g. 0.2.0 (not "dev-abc123").
+plist_version=$(printf '%s' "$version" | sed -E 's/^v//; s/[^0-9.].*$//')
+sed "s/@VERSION@/${plist_version:-0.0.0}/g" "$root/packaging/macos/Info.plist.in" \
+    > "$app/Contents/Info.plist"
+
+# Build the icon set from the 512 px PNG.
+iconset="$work/cryptdeck.iconset"
+mkdir -p "$iconset"
+src="$root/assets/cryptdeck-512.png"
+for size in 16 32 128 256; do
+    sips -z $size $size "$src" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    double=$((size * 2))
+    sips -z $double $double "$src" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+cp "$src" "$iconset/icon_512x512.png"
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/cryptdeck.icns"
+
+# Ad-hoc signature: required for Apple Silicon. This is not a Developer ID
+# signature, so Gatekeeper will still warn on first launch.
+codesign --force --deep --sign - "$app"
+
+ln -s /Applications "$work/dmg/Applications"
+mkdir -p "$out"
+dmg="$out/Cryptdeck-${version}-macos-universal.dmg"
+hdiutil create -volname Cryptdeck -srcfolder "$work/dmg" -ov -format UDZO "$dmg"
+echo "Built $dmg"

@@ -3,11 +3,27 @@
 A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
 [iced](https://iced.rs).
 
-![Cryptdeck mounting a volume](docs/screenshot.png)
+![Cryptdeck with one volume unlocked](docs/screenshot.png)
 
 > **Status: early prototype.** Linux works through the VeraCrypt CLI.
-> macOS and Windows are planned. Don't trust it with data you can't afford
-> to lose yet.
+> macOS and Windows builds run, but can't unlock volumes yet. Don't trust it
+> with data you can't afford to lose yet.
+
+## Using Cryptdeck
+
+1. Install [VeraCrypt](https://www.veracrypt.fr/en/Downloads.html).
+2. Download Cryptdeck from the
+   [Releases page](https://github.com/m411s/Cryptdeck/releases). On Linux,
+   take the AppImage, make it executable (`chmod +x Cryptdeck-*.AppImage`)
+   and run it.
+3. Choose **Add volume…**, or drag a volume file onto the window.
+4. Enter the password and choose **Unlock**. If you set a PIM or keyfiles
+   when creating the volume, add them under **Advanced options**.
+5. Choose **Open** to see the files, and **Lock** when you're done.
+
+Cryptdeck remembers the volumes you add (just their location, never
+passwords), so next time you only need to choose **Unlock**. Unlocked
+volumes stay unlocked until you lock them, even after you close Cryptdeck.
 
 Cryptdeck is an independent project. It is not affiliated with or endorsed
 by IDRIX or the VeraCrypt project.
@@ -70,6 +86,12 @@ CRYPTDECK_BACKEND=mock cargo run
 | --- | --- |
 | `CRYPTDECK_BACKEND=mock` | Use the in-memory demo backend |
 | `CRYPTDECK_VERACRYPT=/path/to/veracrypt` | Use a specific `veracrypt` binary (it must be root-owned to mount) |
+| `CRYPTDECK_THEME=light` or `dark` | Override the system light/dark mode |
+| `CRYPTDECK_CONFIG_DIR=/path` | Keep the saved volume list somewhere else |
+
+The saved volume list is `volumes.json` in your config folder:
+`~/.config/cryptdeck` on Linux, `~/Library/Application Support/cryptdeck`
+on macOS, and `%APPDATA%\cryptdeck` on Windows.
 
 ## Layout
 
@@ -77,16 +99,47 @@ CRYPTDECK_BACKEND=mock cargo run
 crates/
   cryptdeck-core/   Backend trait, VeraCrypt CLI backend, mock backend
   cryptdeck-gui/    iced desktop app (binary: cryptdeck)
+assets/             App icon (SVG source and rendered PNG, ICO, RGBA)
+packaging/          AppImage, macOS .app/.dmg, and release notes
 ```
+
+## Releasing
+
+1. Update `version` in the root `Cargo.toml`, run `cargo build` to update
+   `Cargo.lock`, and commit.
+2. Tag the commit and push the tag:
+
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The `Release` workflow then builds every platform and publishes a GitHub
+Release with these files and a `SHA256SUMS.txt`:
+
+| File | Notes |
+| --- | --- |
+| `Cryptdeck-<version>-x86_64.AppImage` | Linux, glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later) |
+| `cryptdeck-<version>-linux-x86_64.tar.gz` | Linux, plain binary |
+| `Cryptdeck-<version>-macos-universal.dmg` | macOS 11+, Apple Silicon and Intel, ad-hoc signed |
+| `Cryptdeck-<version>-windows-x86_64.zip` | Windows 10+, unsigned |
+
+The tag must match the version in `Cargo.toml`, or the workflow stops. A tag
+with a hyphen (`v0.2.0-beta.1`) is published as a pre-release. Pushes that
+change `packaging/`, `assets/` or the workflow itself run the same builds
+without publishing, and leave the files as workflow artifacts.
 
 ## Roadmap
 
 - [x] List, mount and dismount (Linux, VeraCrypt CLI)
 - [x] PIM, keyfiles, read-only mounts
+- [x] Remembered volumes, drag and drop, plain-language errors
+- [x] Release builds: AppImage, macOS .dmg, Windows .zip
 - [ ] polkit helper with a restricted policy instead of a raw `pkexec veracrypt`
 - [ ] Mount ownership for non-root users (FAT, exFAT and NTFS `uid`/`gid` options)
 - [ ] Hidden volume protection
-- [ ] Favourite volumes and system tray
+- [ ] System tray
+- [ ] Developer ID signing and notarization (macOS), code signing (Windows)
 - [ ] `cryptsetup` backend
 - [ ] Volume creation wizard
 - [ ] macOS

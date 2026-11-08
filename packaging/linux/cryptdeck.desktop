@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cryptdeck
+GenericName=Encrypted Volume Manager
+Comment=Unlock and lock VeraCrypt volumes
+Exec=cryptdeck
+Icon=cryptdeck
+Terminal=false
+Categories=System;Security;
+Keywords=veracrypt;encryption;volume;vault;
+StartupWMClass=cryptdeck

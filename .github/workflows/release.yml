@@ -1,0 +1,136 @@
+name: Release
+
+# Pushing a tag like v0.2.0 builds every platform and publishes a GitHub
+# Release. Pushes that touch packaging (and manual runs) do a dry run: the
+# same builds, uploaded as workflow artifacts, with nothing published.
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    # Not evaluated for tag pushes, so tags always build.
+    paths:
+      - ".github/workflows/release.yml"
+      - "packaging/**"
+      - "assets/**"
+      - "crates/cryptdeck-gui/build.rs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          cargo_version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cryptdeck") | .version')
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "$GITHUB_REF_NAME" != "v$cargo_version" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME doesn't match Cargo version $cargo_version"
+              exit 1
+            fi
+            echo "version=$cargo_version" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$cargo_version-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+  linux:
+    needs: version
+    # The oldest supported runner, so the binary runs on older distributions
+    # (it links against the runner's glibc).
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p cryptdeck
+      - name: AppImage
+        run: packaging/linux/build-appimage.sh target/release/cryptdeck "$VERSION" dist
+      - name: Tarball
+        run: |
+          name="cryptdeck-$VERSION-linux-x86_64"
+          mkdir -p "staging/$name"
+          cp target/release/cryptdeck README.md LICENSE-MIT LICENSE-APACHE \
+             packaging/linux/cryptdeck.desktop assets/cryptdeck.png "staging/$name/"
+          tar -C staging -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Universal binary (Apple Silicon + Intel)
+        run: |
+          cargo build --release --locked -p cryptdeck --target aarch64-apple-darwin
+          cargo build --release --locked -p cryptdeck --target x86_64-apple-darwin
+          lipo -create -output cryptdeck \
+            target/aarch64-apple-darwin/release/cryptdeck \
+            target/x86_64-apple-darwin/release/cryptdeck
+      - run: packaging/macos/build-dmg.sh cryptdeck "$VERSION" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p cryptdeck
+      - name: Zip
+        shell: pwsh
+        run: |
+          $name = "Cryptdeck-$env:VERSION-windows-x86_64"
+          New-Item -ItemType Directory -Force -Path "staging/$name", dist | Out-Null
+          Copy-Item target/release/cryptdeck.exe, README.md, LICENSE-MIT, LICENSE-APACHE "staging/$name/"
+          Compress-Archive -Path "staging/$name" -DestinationPath "dist/$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, linux, macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body_path: packaging/release-notes.md
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
