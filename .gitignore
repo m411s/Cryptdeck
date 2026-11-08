@@ -1,1 +1,8 @@
 target/
+# Flatpak builds
+.flatpak-builder/
+build-dir/
+repo/
+Cryptdeck.flatpak
+packaging/flatpak/cargo-sources.json
+packaging/flatpak/.flatpak-cargo-generator.py

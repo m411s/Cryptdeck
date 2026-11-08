@@ -77,6 +77,10 @@ jobs:
           if [[ -n "$tag" ]]; then
             [[ "$tag" == "v$cargo_version" ]] \
               || fail "Version $tag doesn't match Cargo.toml ($cargo_version)"
+            if ! grep -q "<release version=\"$cargo_version\"" \
+                packaging/flatpak/io.github.m411s.Cryptdeck.metainfo.xml; then
+              echo "::warning::No <release> entry for $cargo_version in the Flatpak metainfo"
+            fi
             {
               echo "version=$cargo_version"
               echo "tag=$tag"
@@ -169,9 +173,62 @@ jobs:
           name: windows
           path: dist/*
 
+  flatpak-sources:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # Turn Cargo.lock into a list of crate downloads, so the Flatpak build
+      # runs offline (as on Flathub). Tool pinned by commit and checksum.
+      - name: Vendor crates
+        env:
+          GEN_COMMIT: 9d86d336a39b9af38b86f114b6ce5820fe260f91
+          GEN_SHA256: 0a2db6be87d75910facef28ab46d4d6460802e8419ab850d0caa6a364d26b380
+        run: |
+          python3 -m pip install --user --quiet tomlkit aiohttp
+          curl -fsSL --retry 5 -o gen.py \
+            "https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/$GEN_COMMIT/cargo/flatpak-cargo-generator.py"
+          echo "$GEN_SHA256  gen.py" | sha256sum -c -
+          python3 gen.py Cargo.lock -o cargo-sources.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: flatpak-cargo-sources
+          path: cargo-sources.json
+
+  flatpak:
+    needs: [version, flatpak-sources]
+    runs-on: ubuntu-latest
+    container:
+      # Flathub's build image for the freedesktop 25.08 runtime.
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08@sha256:c91a88269eee8fcdd73ecf43064232fbebe27411f926f63f38bdf70c51f2ceae
+      options: --privileged
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: flatpak-cargo-sources
+          path: packaging/flatpak
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@933e9e8ca36e85046ebca8e211f0785c6becac40
+        with:
+          manifest-path: packaging/flatpak/io.github.m411s.Cryptdeck.yml
+          bundle: Cryptdeck-${{ needs.version.outputs.version }}-x86_64.flatpak
+          cache-key: flatpak-builder-${{ hashFiles('Cargo.lock') }}
+          upload-artifact: false
+      - run: mkdir -p dist && mv Cryptdeck-*.flatpak dist/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: flatpak
+          path: dist/*
+
   publish:
     if: needs.version.outputs.publish == 'true'
-    needs: [version, linux, macos, windows]
+    needs: [version, linux, macos, windows, flatpak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -184,7 +241,10 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: |
+          # Build input for the Flatpak, not a download.
+          rm -f dist/cargo-sources.json
+          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           # Creates the tag on this commit when it doesn't exist yet.

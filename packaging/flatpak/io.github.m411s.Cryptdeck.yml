@@ -1,0 +1,60 @@
+# Flatpak manifest for Cryptdeck. Build with packaging/flatpak/build.sh,
+# or let the Release workflow do it.
+#
+# Crates are vendored for an offline build (Flathub requires one):
+# cargo-sources.json is generated from Cargo.lock by flatpak-cargo-generator
+# and isn't committed here (see build.sh).
+id: io.github.m411s.Cryptdeck
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: cryptdeck
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # GPU rendering (wgpu).
+  - --device=dri
+  # Volume files: Cryptdeck opens the file itself and hands it to udisks2,
+  # so it needs to read them in your home folder and on removable drives.
+  # Unlocked volumes also appear under /run/media, for "Open".
+  - --filesystem=home
+  - --filesystem=/run/media
+  - --filesystem=/media
+  # udisks2 unlocks and mounts volumes (polkit asks for a password if needed).
+  - --system-talk-name=org.freedesktop.UDisks2
+  # systemd-logind: lock volumes on sleep and when the screen locks.
+  - --system-talk-name=org.freedesktop.login1
+  # System tray icon (StatusNotifierItem).
+  - --talk-name=org.kde.StatusNotifierWatcher
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/cryptdeck/cargo
+    CARGO_NET_OFFLINE: "true"
+
+modules:
+  - name: cryptdeck
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release --locked -p cryptdeck
+      - install -Dm755 target/release/cryptdeck /app/bin/cryptdeck
+      - install -Dm644 packaging/flatpak/io.github.m411s.Cryptdeck.desktop
+        /app/share/applications/io.github.m411s.Cryptdeck.desktop
+      - install -Dm644 packaging/flatpak/io.github.m411s.Cryptdeck.metainfo.xml
+        /app/share/metainfo/io.github.m411s.Cryptdeck.metainfo.xml
+      - install -Dm644 assets/cryptdeck.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.m411s.Cryptdeck.svg
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - .flatpak-builder
+          - build-dir
+          - repo
+      - cargo-sources.json

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata: what software centres and Flathub show. -->
+<component type="desktop-application">
+  <id>io.github.m411s.Cryptdeck</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+
+  <name>Cryptdeck</name>
+  <summary>Unlock and lock VeraCrypt volumes</summary>
+  <summary xml:lang="de">VeraCrypt-Volumes entsperren und sperren</summary>
+
+  <developer id="io.github.m411s">
+    <name>The Cryptdeck contributors</name>
+  </developer>
+
+  <description>
+    <p>
+      Cryptdeck is a simple app for your encrypted VeraCrypt volumes. Add a
+      volume once, then unlock it with its password whenever you need it,
+      and lock it again when you're done.
+    </p>
+    <p xml:lang="de">
+      Cryptdeck ist eine einfache App für Ihre verschlüsselten
+      VeraCrypt-Volumes. Fügen Sie ein Volume einmal hinzu, entsperren Sie es
+      bei Bedarf mit seinem Passwort und sperren Sie es wieder, wenn Sie
+      fertig sind.
+    </p>
+    <ul>
+      <li>Opens VeraCrypt volumes with your system's disk service: VeraCrypt itself doesn't need to be installed</li>
+      <li xml:lang="de">Öffnet VeraCrypt-Volumes mit dem Datenträgerdienst Ihres Systems: VeraCrypt selbst muss nicht installiert sein</li>
+      <li>Remembers your volumes (never your passwords)</li>
+      <li xml:lang="de">Merkt sich Ihre Volumes (niemals Ihre Passwörter)</li>
+      <li>Supports PIM, keyfiles, hidden volumes and read-only unlocking</li>
+      <li xml:lang="de">Unterstützt PIM, Schlüsseldateien, versteckte Volumes und schreibgeschütztes Entsperren</li>
+      <li>Locks your volumes automatically when the computer goes to sleep or the screen locks</li>
+      <li xml:lang="de">Sperrt Ihre Volumes automatisch, wenn der Computer in den Ruhezustand geht oder der Bildschirm gesperrt wird</li>
+      <li>Quick access from the system tray</li>
+      <li xml:lang="de">Schneller Zugriff über den Infobereich</li>
+    </ul>
+    <p>
+      Cryptdeck is an independent project, not affiliated with IDRIX or the
+      VeraCrypt project. It doesn't implement any encryption itself.
+    </p>
+    <p xml:lang="de">
+      Cryptdeck ist ein unabhängiges Projekt und steht in keiner Verbindung
+      zu IDRIX oder dem VeraCrypt-Projekt. Es implementiert selbst keine
+      Verschlüsselung.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.m411s.Cryptdeck.desktop</launchable>
+
+  <url type="homepage">https://github.com/m411s/Cryptdeck</url>
+  <url type="bugtracker">https://github.com/m411s/Cryptdeck/issues</url>
+  <url type="vcs-browser">https://github.com/m411s/Cryptdeck</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/m411s/Cryptdeck/main/docs/screenshot.png</image>
+      <caption>Your volumes, one of them unlocked</caption>
+      <caption xml:lang="de">Ihre Volumes, eines davon entsperrt</caption>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1"/>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">560</display_length>
+  </requires>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#a9b2ff</color>
+    <color type="primary" scheme_preference="dark">#3a45c2</color>
+  </branding>
+
+  <keywords>
+    <keyword>VeraCrypt</keyword>
+    <keyword>encryption</keyword>
+    <keyword xml:lang="de">Verschlüsselung</keyword>
+    <keyword>volume</keyword>
+    <keyword>vault</keyword>
+    <keyword xml:lang="de">Tresor</keyword>
+  </keywords>
+
+  <releases>
+    <release version="0.1.0" date="2026-11-08">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

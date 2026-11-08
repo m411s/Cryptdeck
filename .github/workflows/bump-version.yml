@@ -54,6 +54,9 @@ jobs:
           # The workspace version is the first `version =` line in Cargo.toml.
           sed -i "0,/^version = \".*\"/s//version = \"$next\"/" Cargo.toml
           cargo update --workspace
+          # Add the release to the Flatpak/AppStream metadata, newest first.
+          sed -i "0,/<releases>/s//<releases>\n    <release version=\"$next\" date=\"$(date -u +%F)\"\/>/" \
+            packaging/flatpak/io.github.m411s.Cryptdeck.metainfo.xml
           echo "Bumped $current -> $next"
           echo "version=$next" >> "$GITHUB_OUTPUT"
       - id: commit

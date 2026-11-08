@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Cryptdeck
+GenericName=Encrypted Volume Manager
+GenericName[de]=Verwaltung verschlüsselter Volumes
+Comment=Unlock and lock VeraCrypt volumes
+Comment[de]=VeraCrypt-Volumes entsperren und sperren
+Exec=cryptdeck
+Icon=io.github.m411s.Cryptdeck
+Terminal=false
+Categories=System;Security;
+Keywords=veracrypt;encryption;volume;vault;
+Keywords[de]=veracrypt;verschlüsselung;volume;tresor;
+StartupWMClass=io.github.m411s.Cryptdeck

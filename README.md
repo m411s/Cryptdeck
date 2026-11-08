@@ -19,6 +19,7 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
    [Releases page](https://github.com/m411s/Cryptdeck/releases). On Linux,
    take the AppImage, make it executable (`chmod +x Cryptdeck-*.AppImage`)
    and run it.
+   Or install the Flatpak from the same page (see [Flatpak](#flatpak) below).
 3. Choose **Add volume…**, or drag a volume file onto the window.
 4. Enter the password and choose **Unlock**. If you set a PIM or keyfiles
    when creating the volume, add them under **Advanced options**.
@@ -27,6 +28,29 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
 Cryptdeck remembers the volumes you add (just their location, never
 passwords), so next time you only need to choose **Unlock**. Unlocked
 volumes stay unlocked until you lock them, even after you close Cryptdeck.
+
+### Flatpak
+
+Each release includes `Cryptdeck-<version>-x86_64.flatpak`. Install it with:
+
+```bash
+flatpak install --user ./Cryptdeck-*-x86_64.flatpak
+```
+
+It uses your system's udisks2 (there's no VeraCrypt fallback inside the
+Flatpak sandbox) and can read volume files in your home folder and on
+removable drives under `/media` and `/run/media`. Unlocking whole
+partitions or drives (`/dev/…`) isn't available in the Flatpak.
+
+To build it yourself: `packaging/flatpak/build.sh` (add `--bundle` for a
+`.flatpak` file).
+
+**Publishing on Flathub** needs the repository to be public. Then fork
+[flathub/flathub](https://github.com/flathub/flathub), add the manifest
+from `packaging/flatpak/` with a `git` source pointing at a release tag
+instead of `type: dir`, plus the generated `cargo-sources.json`, and open
+a pull request. Flathub's reviewers check the permissions in the manifest;
+each one has a comment explaining why it's needed.
 
 ### Languages
 
@@ -168,6 +192,11 @@ Run workflow**, pick `patch` (0.1.0 → 0.1.1), `minor` (0.1.0 → 0.2.0) or
 in `Cargo.toml` and `Cargo.lock`, commits that to `main`, then builds and
 publishes the release.
 
+The one-click workflow also adds the release to the Flatpak metadata
+(`packaging/flatpak/io.github.m411s.Cryptdeck.metainfo.xml`). When bumping
+by hand, add a `<release>` entry there too; the release build warns if
+it's missing.
+
 **Automatic:** when a push to `main` changes the version in `Cargo.toml` to
 one that hasn't been released, the release is built and published by
 itself. Run `cargo build` after editing the version, so `Cargo.lock` is
@@ -192,6 +221,7 @@ Each release has these files and a `SHA256SUMS.txt`:
 | `cryptdeck-<version>-linux-x86_64.tar.gz` | Linux, plain binary |
 | `Cryptdeck-<version>-macos-universal.dmg` | macOS 11+, Apple Silicon and Intel, ad-hoc signed |
 | `Cryptdeck-<version>-windows-x86_64.zip` | Windows 10+, unsigned |
+| `Cryptdeck-<version>-x86_64.flatpak` | Linux, Flatpak (freedesktop 25.08 runtime) |
 
 The version must match `Cargo.toml` and must not have been released before,
 or the workflow stops before building. A version with a hyphen
@@ -213,6 +243,8 @@ workflow artifacts.
 - [x] Lock on sleep and screen lock (Linux)
 - [x] Hidden volumes
 - [x] German translation
+- [x] Flatpak bundle in releases
+- [ ] Flathub (needs the repository to be public)
 - [ ] System tray (macOS, Windows)
 - [ ] Developer ID signing and notarization (macOS), code signing (Windows)
 - [ ] Volume creation wizard

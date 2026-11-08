@@ -27,6 +27,10 @@ use zeroize::Zeroizing;
 
 const VERACRYPT_DOWNLOAD: &str = "https://www.veracrypt.fr/en/Downloads.html";
 const PASSWORD_ID: &str = "password";
+/// Matches the desktop file and Flatpak ID, so desktops (especially on
+/// Wayland) show the right icon and name for the window.
+#[cfg(target_os = "linux")]
+const APP_ID: &str = "io.github.m411s.Cryptdeck";
 /// 64×64 RGBA, rendered from `assets/cryptdeck.svg`.
 const ICON_RGBA: &[u8] = include_bytes!("../../../assets/icon-64.rgba");
 
@@ -69,6 +73,11 @@ fn window_settings() -> window::Settings {
         icon: window::icon::from_rgba(ICON_RGBA.to_vec(), 64, 64).ok(),
         // We decide what closing means: hide to the tray, or quit.
         exit_on_close_request: false,
+        #[cfg(target_os = "linux")]
+        platform_specific: window::settings::PlatformSpecific {
+            application_id: APP_ID.into(),
+            ..Default::default()
+        },
         ..window::Settings::default()
     }
 }

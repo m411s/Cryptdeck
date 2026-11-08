@@ -8,6 +8,7 @@ else is needed on most desktops. Otherwise it needs
 | --- | --- | --- |
 | Linux | `Cryptdeck-…-x86_64.AppImage` | Works |
 | Linux | `cryptdeck-…-linux-x86_64.tar.gz` | Works (plain binary) |
+| Linux | `Cryptdeck-…-x86_64.flatpak` | Works (needs udisks2; install with `flatpak install --user ./Cryptdeck-*.flatpak`) |
 | macOS (Apple Silicon and Intel) | `Cryptdeck-…-macos-universal.dmg` | Preview: the app runs, but can't unlock volumes yet |
 | Windows | `Cryptdeck-…-windows-x86_64.zip` | New: needs VeraCrypt installed (see the README's security notes) |
 

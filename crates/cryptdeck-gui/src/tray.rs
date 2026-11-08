@@ -203,7 +203,11 @@ mod imp {
                 events,
                 state: State::default(),
             };
-            match tray.spawn() {
+            // Flatpak's D-Bus filter doesn't let apps own the usual
+            // per-process name, so register without one there.
+            let in_flatpak = std::path::Path::new("/.flatpak-info").exists();
+            let spawned = tray.disable_dbus_name(in_flatpak).spawn();
+            match spawned {
                 Ok(handle) => {
                     let _ = output
                         .send(Update::Ready(super::Handle(Arc::new(handle))))

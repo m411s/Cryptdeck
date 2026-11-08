@@ -8,4 +8,4 @@ Icon=cryptdeck
 Terminal=false
 Categories=System;Security;
 Keywords=veracrypt;encryption;volume;vault;
-StartupWMClass=cryptdeck
+StartupWMClass=io.github.m411s.Cryptdeck
