@@ -14,6 +14,12 @@ pub trait Backend: Send + Sync {
     /// List currently mounted volumes.
     fn list(&self) -> Result<Vec<MountedVolume>>;
 
+    /// Whether [`MountRequest::mount_point`] is honoured. Some backends
+    /// always choose the mount point themselves.
+    fn supports_mount_point(&self) -> bool {
+        true
+    }
+
     /// Mount a volume.
     fn mount(&self, request: &MountRequest) -> Result<()>;
 

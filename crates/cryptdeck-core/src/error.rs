@@ -37,3 +37,17 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
+
+/// Recognise common failures (from VeraCrypt or cryptsetup) so the UI can explain them plainly.
+pub(crate) fn classify(message: String) -> Error {
+    let lower = message.to_lowercase();
+    if lower.contains("incorrect") && lower.contains("password") {
+        Error::WrongPassword
+    } else if lower.contains("already mounted") {
+        Error::AlreadyMounted
+    } else if lower.contains("busy") {
+        Error::VolumeBusy
+    } else {
+        Error::CommandFailed(message)
+    }
+}

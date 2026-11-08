@@ -448,6 +448,9 @@ impl App {
                 let Some(form) = &mut self.unlock else {
                     return Task::none();
                 };
+                if !self.backend.supports_mount_point() {
+                    form.mount_point.clear();
+                }
                 let request = match form.request() {
                     Ok(r) => r,
                     Err(e) => {
@@ -1070,25 +1073,36 @@ impl App {
         ]
         .spacing(8);
 
-        let mount_point = row![
-            label("Unlock to folder"),
-            column![
-                row![
-                    text_input("Leave empty to let VeraCrypt choose", &f.mount_point)
-                        .on_input_maybe((!busy).then_some(Message::MountPointChanged))
-                        .on_submit(Message::Unlock),
-                    button("Choose…")
-                        .style(button::secondary)
-                        .on_press(Message::BrowseMountPoint),
-                ]
-                .spacing(8)
-                .align_y(Alignment::Center),
-                hint("The folder where the volume's files will appear."),
+        let mount_point: Element<_> = if !self.backend.supports_mount_point() {
+            row![
+                label("Unlock to folder"),
+                hint("Your system chooses the folder (under /run/media), like for a USB stick.")
+                    .width(Length::Fill),
             ]
-            .spacing(4)
-            .width(Length::Fill),
-        ]
-        .spacing(8);
+            .spacing(8)
+            .into()
+        } else {
+            row![
+                label("Unlock to folder"),
+                column![
+                    row![
+                        text_input("Leave empty to let VeraCrypt choose", &f.mount_point)
+                            .on_input_maybe((!busy).then_some(Message::MountPointChanged))
+                            .on_submit(Message::Unlock),
+                        button("Choose…")
+                            .style(button::secondary)
+                            .on_press(Message::BrowseMountPoint),
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                    hint("The folder where the volume's files will appear."),
+                ]
+                .spacing(4)
+                .width(Length::Fill),
+            ]
+            .spacing(8)
+            .into()
+        };
 
         let read_only = row![
             label(""),

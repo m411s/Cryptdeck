@@ -642,7 +642,9 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "secrecy",
+ "serde",
  "thiserror 2.0.21",
+ "zbus",
  "zeroize",
 ]
 

@@ -11,7 +11,9 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
 
 ## Using Cryptdeck
 
-1. Install [VeraCrypt](https://www.veracrypt.fr/en/Downloads.html).
+1. On Linux, nothing else is needed on most desktops: Cryptdeck uses your
+   system's disk service (udisks2). Elsewhere, or if that isn't available,
+   install [VeraCrypt](https://www.veracrypt.fr/en/Downloads.html).
 2. Download Cryptdeck from the
    [Releases page](https://github.com/m411s/Cryptdeck/releases). On Linux,
    take the AppImage, make it executable (`chmod +x Cryptdeck-*.AppImage`)
@@ -44,22 +46,32 @@ tool as a separate process:
 
 | Platform | Backend | Status |
 | --- | --- | --- |
-| Linux | `veracrypt --text` CLI, password passed on stdin | Working |
-| Linux | `cryptsetup --type tcrypt --veracrypt` (no VeraCrypt install needed) | Planned |
+| Linux | udisks2 (the service behind GNOME Disks and KDE's file manager), which uses `cryptsetup`; no VeraCrypt install needed | Default when udisks 2.9+ is running |
+| Linux | `veracrypt --text` CLI, password passed on stdin | Fallback |
 | macOS | `veracrypt --text` CLI | Planned (should need little work) |
 | Windows | VeraCrypt driver via `DeviceIoControl` | Planned |
 
 Each backend implements the `Backend` trait in `cryptdeck-core`, and the GUI
 only talks to that trait.
 
+With udisks2, volumes are mounted as you, under `/run/media/<you>`, like a
+USB stick, so you can write to them. Your desktop's polkit rules decide
+whether an admin password is needed; for your own container files it
+usually isn't. udisks always chooses the mount folder, so "Unlock to
+folder" isn't offered with it.
+
 ### Security notes
 
-- The password is written to VeraCrypt's stdin (`--stdin`), so it never
-  appears in the process list or in shell history.
+- With udisks2, the password goes to the udisks service over the local
+  system D-Bus, and Cryptdeck never runs anything as root. Keyfiles are
+  read by Cryptdeck and passed by content (keyfile folders aren't
+  supported there).
+- With the VeraCrypt CLI, the password is written to VeraCrypt's stdin
+  (`--stdin`), so it never appears in the process list or in shell history.
 - Inside Cryptdeck, the password is held in `secrecy`/`zeroize` types and
   wiped after a successful mount. iced's text input keeps its own copy while
   you're typing, and Cryptdeck can't wipe that copy.
-- Mounting needs root. When Cryptdeck isn't running as root, it runs
+- With the VeraCrypt CLI, mounting needs root. When Cryptdeck isn't running as root, it runs
   `veracrypt` through `pkexec`, which shows your desktop's polkit password
   dialog. A dedicated, narrowly scoped helper with its own polkit policy is
   on the roadmap.
@@ -93,7 +105,7 @@ CRYPTDECK_BACKEND=mock cargo run
 
 | Variable | Effect |
 | --- | --- |
-| `CRYPTDECK_BACKEND=mock` | Use the in-memory demo backend |
+| `CRYPTDECK_BACKEND=udisks`, `veracrypt` or `mock` | Force a backend (`mock` is an in-memory demo) |
 | `CRYPTDECK_VERACRYPT=/path/to/veracrypt` | Use a specific `veracrypt` binary (it must be root-owned to mount) |
 | `CRYPTDECK_THEME=light` or `dark` | Override the system light/dark mode |
 | `CRYPTDECK_CONFIG_DIR=/path` | Keep the saved volume list somewhere else |
@@ -158,13 +170,12 @@ workflow artifacts.
 - [x] PIM, keyfiles, read-only mounts
 - [x] Remembered volumes, drag and drop, plain-language errors
 - [x] Release builds: AppImage, macOS .dmg, Windows .zip
-- [ ] polkit helper with a restricted policy instead of a raw `pkexec veracrypt`
-- [ ] Mount ownership for non-root users (FAT, exFAT and NTFS `uid`/`gid` options)
+- [ ] VeraCrypt CLI fallback: polkit helper with a restricted policy instead of a raw `pkexec veracrypt`
+- [x] udisks2 backend (no VeraCrypt or root needed on Linux; volumes owned by you)
 - [ ] Hidden volume protection
 - [x] System tray (Linux)
 - [ ] System tray (macOS, Windows)
 - [ ] Developer ID signing and notarization (macOS), code signing (Windows)
-- [ ] `cryptsetup` backend
 - [ ] Volume creation wizard
 - [ ] macOS
 - [ ] Windows

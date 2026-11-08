@@ -125,7 +125,7 @@ impl VeraCryptCli {
                 return Err(Error::AuthCancelled);
             }
         }
-        Err(classify(error_message(&output)))
+        Err(crate::error::classify(error_message(&output)))
     }
 }
 
@@ -284,20 +284,6 @@ fn error_message(output: &Output) -> String {
     }
 }
 
-/// Recognise common VeraCrypt failures so the UI can explain them plainly.
-fn classify(message: String) -> Error {
-    let lower = message.to_lowercase();
-    if lower.contains("incorrect") && lower.contains("password") {
-        Error::WrongPassword
-    } else if lower.contains("already mounted") {
-        Error::AlreadyMounted
-    } else if lower.contains("busy") {
-        Error::VolumeBusy
-    } else {
-        Error::CommandFailed(message)
-    }
-}
-
 fn truncate(text: &str, max_chars: usize) -> String {
     match text.char_indices().nth(max_chars) {
         Some((cut, _)) => format!("{}…", &text[..cut]),
@@ -408,7 +394,7 @@ mod tests {
 
     #[test]
     fn classifies_common_errors() {
-        let c = |m: &str| classify(m.to_owned());
+        let c = |m: &str| crate::error::classify(m.to_owned());
         assert!(matches!(
             c("Incorrect password or not a VeraCrypt volume."),
             Error::WrongPassword

@@ -1,6 +1,8 @@
 ## Downloads
 
-Cryptdeck needs [VeraCrypt](https://www.veracrypt.fr/en/Downloads.html) installed.
+On Linux, Cryptdeck uses your system's disk service (udisks2), so nothing
+else is needed on most desktops. Otherwise it needs
+[VeraCrypt](https://www.veracrypt.fr/en/Downloads.html) installed.
 
 | Platform | File | Status |
 | --- | --- | --- |
