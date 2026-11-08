@@ -5,6 +5,8 @@
 //! existing, audited tool as a separate process: Cryptdeck never implements
 //! volume cryptography itself, and never links VeraCrypt source code.
 
+rust_i18n::i18n!("locales", fallback = "en");
+
 mod backend;
 mod error;
 pub mod mock;
@@ -49,4 +51,42 @@ pub fn default_backend() -> Arc<dyn Backend> {
     return Arc::new(windows::VeraCryptWin::new());
     #[cfg(not(windows))]
     Arc::new(veracrypt::VeraCryptCli::new())
+}
+
+#[cfg(test)]
+mod translation_tests {
+    /// Every `t!("key")` in the source must exist in English and German;
+    /// a missing key would show up in the UI as the raw key.
+    #[test]
+    fn every_key_is_translated() {
+        let sources = [
+            include_str!("error.rs"),
+            include_str!("types.rs"),
+            include_str!("udisks.rs"),
+            include_str!("windows.rs"),
+        ];
+        let mut keys: Vec<&str> = Vec::new();
+        for src in sources {
+            // Skip this test module, whose comments mention `t!`.
+            let src = src.split("mod translation_tests").next().unwrap_or(src);
+            for (i, _) in src.match_indices("t!(\"") {
+                // A standalone `t!(`, not the end of e.g. `format!(`.
+                let before = src[..i].chars().next_back().unwrap_or(' ');
+                if before.is_alphanumeric() || before == '_' {
+                    continue;
+                }
+                let rest = &src[i + 4..];
+                keys.extend(rest.split('"').next());
+            }
+        }
+        keys.sort();
+        keys.dedup();
+        assert!(keys.len() > 20, "found only {} keys", keys.len());
+        for locale in ["en", "de"] {
+            for key in &keys {
+                let text = rust_i18n::t!(*key, locale = locale);
+                assert_ne!(&*text, *key, "{key} has no {locale} translation");
+            }
+        }
+    }
 }

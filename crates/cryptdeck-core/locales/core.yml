@@ -1,0 +1,92 @@
+# Messages from the core library (errors, validation, backend status).
+# Same format as crates/cryptdeck-gui/locales/app.yml; English is the
+# fallback. Placeholders like %{path} must be kept as they are.
+_version: 2
+
+error.not_installed:
+  en: "%{name} was not found. Is it installed and on your PATH?"
+  de: "%{name} wurde nicht gefunden. Ist es installiert und im PATH?"
+error.wrong_password:
+  en: "Wrong password, or this isn't a VeraCrypt volume. If you set a PIM or keyfiles when you created the volume, or it's a hidden volume, set that under Advanced options."
+  de: "Falsches Passwort, oder dies ist kein VeraCrypt-Volume. Falls Sie beim Erstellen eine PIM oder Schlüsseldateien festgelegt haben oder es ein verstecktes Volume ist, stellen Sie das unter „Erweiterte Optionen“ ein."
+error.already_mounted:
+  en: "This volume is already unlocked"
+  de: "Dieses Volume ist bereits entsperrt"
+error.busy:
+  en: "The volume is in use. Close any files or windows that use it, then try again."
+  de: "Das Volume wird verwendet. Schließen Sie alle Dateien und Fenster, die es nutzen, und versuchen Sie es erneut."
+error.auth_cancelled:
+  en: "Administrator authentication was cancelled"
+  de: "Die Administrator-Anmeldung wurde abgebrochen"
+error.untrusted_binary:
+  en: "Refusing to run %{path} as administrator: it and its folder must be owned by root and not writable by other users. Install VeraCrypt system-wide, or point CRYPTDECK_VERACRYPT at a root-owned copy."
+  de: "%{path} wird nicht als Administrator ausgeführt: Die Datei und ihr Ordner müssen root gehören und dürfen für andere Benutzer nicht beschreibbar sein. Installieren Sie VeraCrypt systemweit oder setzen Sie CRYPTDECK_VERACRYPT auf eine Kopie, die root gehört."
+
+validate.choose_volume:
+  en: "Choose a volume to unlock"
+  de: "Wählen Sie ein Volume zum Entsperren aus"
+validate.not_found:
+  en: "Volume not found: %{path}"
+  de: "Volume nicht gefunden: %{path}"
+validate.is_folder:
+  en: "The volume must be a file or a device, not a folder: %{path}"
+  de: "Das Volume muss eine Datei oder ein Gerät sein, kein Ordner: %{path}"
+validate.mount_point_not_dir:
+  en: "The folder to unlock to doesn't exist: %{path}"
+  de: "Der Ordner zum Entsperren existiert nicht: %{path}"
+validate.need_password:
+  en: "Enter a password or add at least one keyfile"
+  de: "Geben Sie ein Passwort ein oder fügen Sie mindestens eine Schlüsseldatei hinzu"
+validate.password_too_long:
+  en: "VeraCrypt passwords can be at most %{max} bytes long"
+  de: "VeraCrypt-Passwörter dürfen höchstens %{max} Bytes lang sein"
+validate.line_breaks:
+  en: "Passwords containing line breaks are not supported"
+  de: "Passwörter mit Zeilenumbrüchen werden nicht unterstützt"
+validate.pim_max:
+  en: "PIM must be at most %{max}"
+  de: "Die PIM darf höchstens %{max} sein"
+validate.keyfile_not_found:
+  en: "Keyfile not found: %{path}"
+  de: "Schlüsseldatei nicht gefunden: %{path}"
+validate.keyfile_comma:
+  en: "Keyfile paths containing commas are not supported: %{path}"
+  de: "Pfade von Schlüsseldateien mit Kommas werden nicht unterstützt: %{path}"
+
+udisks.status:
+  en: "Using your system's disk service (udisks %{version})"
+  de: "Nutzt den Datenträgerdienst Ihres Systems (udisks %{version})"
+udisks.too_old:
+  en: "udisks %{version} is too old to open VeraCrypt volumes (2.9 or newer needed)"
+  de: "udisks %{version} ist zu alt, um VeraCrypt-Volumes zu öffnen (2.9 oder neuer nötig)"
+udisks.no_folder:
+  en: "Your system chooses where volumes appear, so “Unlock to folder” isn't available"
+  de: "Ihr System bestimmt, wo Volumes erscheinen, daher ist „In Ordner entsperren“ nicht verfügbar"
+udisks.keyfile_folder:
+  en: "Keyfile folders aren't supported here; add the files inside “%{path}” instead"
+  de: "Ordner als Schlüsseldateien werden hier nicht unterstützt; fügen Sie stattdessen die Dateien in „%{path}“ hinzu"
+udisks.not_unlocked:
+  en: "The volume is no longer unlocked"
+  de: "Das Volume ist nicht mehr entsperrt"
+udisks.no_backing:
+  en: "Couldn't find the encrypted device"
+  de: "Das verschlüsselte Gerät wurde nicht gefunden"
+udisks.not_ready:
+  en: "The system didn't finish preparing the volume (%{detail})"
+  de: "Das System hat das Volume nicht fertig vorbereitet (%{detail})"
+udisks.unknown_device:
+  en: "The system doesn't know %{path}"
+  de: "Das System kennt %{path} nicht"
+
+windows.status:
+  en: "Using VeraCrypt (%{path})"
+  de: "Nutzt VeraCrypt (%{path})"
+windows.unlock_failed:
+  en: "VeraCrypt couldn't unlock the volume. Check the password, PIM and keyfiles (and “Open the hidden volume” for a hidden one). If they're right, try unlocking it in VeraCrypt itself to see its full message."
+  de: "VeraCrypt konnte das Volume nicht entsperren. Prüfen Sie Passwort, PIM und Schlüsseldateien (und „Verstecktes Volume öffnen“ bei einem versteckten). Wenn alles stimmt, entsperren Sie es in VeraCrypt selbst, um die vollständige Meldung zu sehen."
+windows.no_letter:
+  en: "No free drive letter"
+  de: "Kein freier Laufwerksbuchstabe"
+windows.list_failed:
+  en: "Couldn't ask VeraCrypt which volumes are unlocked (%{error})"
+  de: "VeraCrypt konnte nicht nach den entsperrten Volumes gefragt werden (%{error})"

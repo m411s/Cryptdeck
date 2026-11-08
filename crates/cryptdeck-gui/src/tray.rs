@@ -86,6 +86,8 @@ mod imp {
     use ksni::blocking::TrayMethods;
     use ksni::menu::{MenuItem, StandardItem};
 
+    use rust_i18n::t;
+
     use super::{escape_label, Event, State, Update};
 
     pub type Handle = Arc<ksni::blocking::Handle<Tray>>;
@@ -137,9 +139,9 @@ mod imp {
         fn tool_tip(&self) -> ksni::ToolTip {
             let unlocked = self.state.volumes.iter().filter(|v| v.unlocked).count();
             let description = match unlocked {
-                0 => "All volumes are locked".to_string(),
-                1 => "1 volume is unlocked".to_string(),
-                n => format!("{n} volumes are unlocked"),
+                0 => t!("notice.all_locked").to_string(),
+                1 => t!("tray.one_unlocked").to_string(),
+                n => t!("tray.n_unlocked", count = n).to_string(),
             };
             ksni::ToolTip {
                 title: "Cryptdeck".into(),
@@ -156,25 +158,25 @@ mod imp {
         fn menu(&self) -> Vec<MenuItem<Self>> {
             let idle = !self.state.busy;
             let mut menu = vec![
-                self.item("Show Cryptdeck".into(), true, Event::Show),
+                self.item(t!("tray.show").into(), true, Event::Show),
                 MenuItem::Separator,
             ];
             for v in &self.state.volumes {
                 let name = escape_label(&v.name);
                 if v.unlocked {
                     menu.push(self.item(
-                        format!("Open “{name}”"),
+                        t!("tray.open", name = name).into(),
                         v.can_open,
                         Event::Open(v.path.clone()),
                     ));
                     menu.push(self.item(
-                        format!("Lock “{name}”"),
+                        t!("tray.lock", name = name).into(),
                         idle,
                         Event::Lock(v.path.clone()),
                     ));
                 } else {
                     menu.push(self.item(
-                        format!("Unlock “{name}”…"),
+                        t!("tray.unlock", name = name).into(),
                         idle,
                         Event::Unlock(v.path.clone()),
                     ));
@@ -184,8 +186,8 @@ mod imp {
                 menu.push(MenuItem::Separator);
             }
             let any_unlocked = self.state.volumes.iter().any(|v| v.unlocked);
-            menu.push(self.item("Lock all".into(), idle && any_unlocked, Event::LockAll));
-            menu.push(self.item("Quit Cryptdeck".into(), true, Event::Quit));
+            menu.push(self.item(t!("lock_all").into(), idle && any_unlocked, Event::LockAll));
+            menu.push(self.item(t!("tray.quit").into(), true, Event::Quit));
             menu
         }
     }

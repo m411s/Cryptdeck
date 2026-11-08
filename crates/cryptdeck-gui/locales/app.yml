@@ -1,0 +1,260 @@
+# Cryptdeck's UI texts. Each key has every language side by side; English
+# is the fallback for anything missing. To add a language, add its code
+# (e.g. "fr") under every key, and in crates/cryptdeck-core/locales/core.yml.
+# Placeholders like %{name} must be kept as they are.
+_version: 2
+
+pim_range:
+  en: "PIM must be a number from 0 to %{max}"
+  de: "Die PIM muss eine Zahl von 0 bis %{max} sein"
+list_failed:
+  en: "Couldn't list volumes: %{error}"
+  de: "Die Volumes konnten nicht aufgelistet werden: %{error}"
+internal_error:
+  en: "Internal error: a background task crashed"
+  de: "Interner Fehler: Eine Hintergrundaufgabe ist abgestürzt"
+
+dialog.choose_volume:
+  en: "Choose a VeraCrypt volume"
+  de: "VeraCrypt-Volume auswählen"
+dialog.add_keyfiles:
+  en: "Add keyfiles"
+  de: "Schlüsseldateien hinzufügen"
+dialog.choose_folder:
+  en: "Choose where to unlock the volume"
+  de: "Ordner zum Entsperren auswählen"
+
+notice.unlocked:
+  en: "“%{name}” is unlocked"
+  de: "„%{name}“ ist entsperrt"
+notice.locked:
+  en: "“%{name}” is locked"
+  de: "„%{name}“ ist gesperrt"
+notice.all_locked:
+  en: "All volumes are locked"
+  de: "Alle Volumes sind gesperrt"
+notice.lock_failed:
+  en: "Couldn't lock “%{name}”: %{error}"
+  de: "„%{name}“ konnte nicht gesperrt werden: %{error}"
+notice.open_failed:
+  en: "Couldn't open %{path}: %{error}"
+  de: "%{path} konnte nicht geöffnet werden: %{error}"
+notice.browser_failed:
+  en: "Couldn't open your browser (%{error}). Visit %{url}"
+  de: "Der Browser konnte nicht geöffnet werden (%{error}). Besuchen Sie %{url}"
+notice.autolock_failed:
+  en: "Tried to lock your volumes automatically, but: %{error}"
+  de: "Die Volumes sollten automatisch gesperrt werden, aber: %{error}"
+notice.is_folder:
+  en: "“%{name}” is a folder. Choose the VeraCrypt volume file instead."
+  de: "„%{name}“ ist ein Ordner. Wählen Sie stattdessen die Datei des VeraCrypt-Volumes."
+notice.settings_save_failed:
+  en: "Couldn't save your settings: %{error}"
+  de: "Die Einstellungen konnten nicht gespeichert werden: %{error}"
+notice.list_save_failed:
+  en: "Couldn't save your volume list: %{error}"
+  de: "Die Volume-Liste konnte nicht gespeichert werden: %{error}"
+dismiss:
+  en: "Dismiss"
+  de: "Schließen"
+
+drop.title:
+  en: "Drop to add this volume"
+  de: "Loslassen, um dieses Volume hinzuzufügen"
+drop.body:
+  en: "Cryptdeck will remember it, and ask for its password."
+  de: "Cryptdeck merkt es sich und fragt nach seinem Passwort."
+
+header.checking:
+  en: "Checking…"
+  de: "Wird geprüft…"
+header.settings:
+  en: "Settings"
+  de: "Einstellungen"
+header.close_settings:
+  en: "Close settings"
+  de: "Einstellungen schließen"
+
+settings.autolock:
+  en: "Automatic locking"
+  de: "Automatisches Sperren"
+settings.on_sleep:
+  en: "Lock all volumes when the computer goes to sleep"
+  de: "Alle Volumes sperren, wenn der Computer in den Ruhezustand geht"
+settings.on_screen_lock:
+  en: "Lock all volumes when the screen locks"
+  de: "Alle Volumes sperren, wenn der Bildschirm gesperrt wird"
+settings.open_files:
+  en: "Volumes with files still open can't be locked. If that happens, Cryptdeck tells you."
+  de: "Volumes mit noch geöffneten Dateien können nicht gesperrt werden. Cryptdeck sagt Ihnen dann Bescheid."
+settings.no_screen_lock:
+  en: "Your system doesn't report screen locks, so that option isn't available."
+  de: "Ihr System meldet keine Bildschirmsperre, daher ist diese Option nicht verfügbar."
+settings.unavailable:
+  en: "Automatic locking isn't available on this system."
+  de: "Automatisches Sperren ist auf diesem System nicht verfügbar."
+
+banner.missing.title:
+  en: "VeraCrypt is needed"
+  de: "VeraCrypt wird benötigt"
+banner.missing.body:
+  en: "Cryptdeck uses VeraCrypt to unlock volumes, and it doesn't seem to be installed. Install it, then choose Check again."
+  de: "Cryptdeck entsperrt Volumes mit VeraCrypt, und VeraCrypt scheint nicht installiert zu sein. Installieren Sie es und wählen Sie dann „Erneut prüfen“."
+banner.broken.title:
+  en: "VeraCrypt isn't working"
+  de: "VeraCrypt funktioniert nicht"
+banner.get:
+  en: "Get VeraCrypt"
+  de: "VeraCrypt herunterladen"
+banner.check_again:
+  en: "Check again"
+  de: "Erneut prüfen"
+
+list.title:
+  en: "Your volumes"
+  de: "Ihre Volumes"
+empty.title:
+  en: "No volumes yet"
+  de: "Noch keine Volumes"
+empty.body:
+  en: "Add a VeraCrypt volume to get started. You can also drag a volume file onto this window."
+  de: "Fügen Sie ein VeraCrypt-Volume hinzu, um loszulegen. Sie können eine Volume-Datei auch auf dieses Fenster ziehen."
+add_volume:
+  en: "Add volume…"
+  de: "Volume hinzufügen…"
+footer.drag:
+  en: "or drag a volume file onto this window"
+  de: "oder eine Volume-Datei auf dieses Fenster ziehen"
+footer.stay_unlocked:
+  en: "Unlocked volumes stay unlocked until you lock them, even after you close Cryptdeck."
+  de: "Entsperrte Volumes bleiben entsperrt, bis Sie sie sperren – auch wenn Sie Cryptdeck schließen."
+footer.tray:
+  en: "Unlocked volumes stay unlocked until you lock them. Closing this window keeps Cryptdeck in the system tray."
+  de: "Entsperrte Volumes bleiben entsperrt, bis Sie sie sperren. Wenn Sie dieses Fenster schließen, bleibt Cryptdeck im Infobereich."
+lock_all:
+  en: "Lock all"
+  de: "Alle sperren"
+
+status.unlocked:
+  en: "Unlocked"
+  de: "Entsperrt"
+status.locked:
+  en: "Locked"
+  de: "Gesperrt"
+card.unlocked_at:
+  en: "Unlocked at %{path}"
+  de: "Entsperrt unter %{path}"
+busy.unlocking:
+  en: "Unlocking…"
+  de: "Wird entsperrt…"
+busy.locking:
+  en: "Locking…"
+  de: "Wird gesperrt…"
+open:
+  en: "Open"
+  de: "Öffnen"
+lock:
+  en: "Lock"
+  de: "Sperren"
+unlock:
+  en: "Unlock"
+  de: "Entsperren"
+forget:
+  en: "Forget"
+  de: "Vergessen"
+
+password:
+  en: "Password"
+  de: "Passwort"
+show:
+  en: "Show"
+  de: "Anzeigen"
+hide:
+  en: "Hide"
+  de: "Verbergen"
+cancel:
+  en: "Cancel"
+  de: "Abbrechen"
+advanced.show:
+  en: "Advanced options"
+  de: "Erweiterte Optionen"
+advanced.hide:
+  en: "Hide advanced options"
+  de: "Erweiterte Optionen ausblenden"
+pim.placeholder:
+  en: "Leave empty for the default"
+  de: "Leer lassen für den Standardwert"
+pim.hint:
+  en: "Only needed if you chose a PIM when creating the volume."
+  de: "Nur nötig, wenn Sie beim Erstellen des Volumes eine PIM gewählt haben."
+keyfiles:
+  en: "Keyfiles"
+  de: "Schlüsseldateien"
+add_keyfiles:
+  en: "Add keyfiles…"
+  de: "Schlüsseldateien hinzufügen…"
+remove:
+  en: "Remove"
+  de: "Entfernen"
+folder.label:
+  en: "Unlock to folder"
+  de: "In Ordner entsperren"
+folder.windows:
+  en: "Cryptdeck picks a free drive letter, like for a USB stick."
+  de: "Cryptdeck wählt einen freien Laufwerksbuchstaben, wie bei einem USB-Stick."
+folder.system:
+  en: "Your system chooses the folder (under /run/media), like for a USB stick."
+  de: "Ihr System wählt den Ordner (unter /run/media), wie bei einem USB-Stick."
+folder.placeholder:
+  en: "Leave empty to let VeraCrypt choose"
+  de: "Leer lassen, damit VeraCrypt einen wählt"
+folder.hint:
+  en: "The folder where the volume's files will appear."
+  de: "Der Ordner, in dem die Dateien des Volumes erscheinen."
+choose:
+  en: "Choose…"
+  de: "Auswählen…"
+hidden.label:
+  en: "Open the hidden volume"
+  de: "Verstecktes Volume öffnen"
+hidden.hint:
+  en: "For a hidden volume inside this one: enter the hidden volume's password above."
+  de: "Für ein verstecktes Volume in diesem: Geben Sie oben das Passwort des versteckten Volumes ein."
+read_only:
+  en: "Open read-only (nothing can be changed)"
+  de: "Schreibgeschützt öffnen (nichts kann geändert werden)"
+
+autolock.sleep_one:
+  en: "Locked 1 volume because the computer went to sleep"
+  de: "1 Volume gesperrt, weil der Computer in den Ruhezustand ging"
+autolock.sleep_many:
+  en: "Locked %{count} volumes because the computer went to sleep"
+  de: "%{count} Volumes gesperrt, weil der Computer in den Ruhezustand ging"
+autolock.screen_one:
+  en: "Locked 1 volume because the screen was locked"
+  de: "1 Volume gesperrt, weil der Bildschirm gesperrt wurde"
+autolock.screen_many:
+  en: "Locked %{count} volumes because the screen was locked"
+  de: "%{count} Volumes gesperrt, weil der Bildschirm gesperrt wurde"
+
+tray.one_unlocked:
+  en: "1 volume is unlocked"
+  de: "1 Volume ist entsperrt"
+tray.n_unlocked:
+  en: "%{count} volumes are unlocked"
+  de: "%{count} Volumes sind entsperrt"
+tray.show:
+  en: "Show Cryptdeck"
+  de: "Cryptdeck anzeigen"
+tray.open:
+  en: "Open “%{name}”"
+  de: "„%{name}“ öffnen"
+tray.lock:
+  en: "Lock “%{name}”"
+  de: "„%{name}“ sperren"
+tray.unlock:
+  en: "Unlock “%{name}”…"
+  de: "„%{name}“ entsperren…"
+tray.quit:
+  en: "Quit Cryptdeck"
+  de: "Cryptdeck beenden"

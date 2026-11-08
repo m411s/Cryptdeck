@@ -19,6 +19,7 @@ use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use rust_i18n::t;
 use secrecy::ExposeSecret;
 use zbus::blocking::{Connection, Proxy};
 use zbus::proxy::MethodFlags;
@@ -64,9 +65,9 @@ impl Udisks {
         let manager = proxy(&conn, MANAGER, IFACE_MANAGER)?;
         let version: String = manager.get_property("Version").map_err(dbus_error)?;
         if parse_version(&version) < Some(MIN_VERSION) {
-            return Err(Error::CommandFailed(format!(
-                "udisks {version} is too old to open VeraCrypt volumes (2.9 or newer needed)"
-            )));
+            return Err(Error::CommandFailed(
+                t!("udisks.too_old", version = version).into(),
+            ));
         }
         Ok(Self { conn, version })
     }
@@ -107,9 +108,9 @@ impl Udisks {
                 }
             }
             if Instant::now() >= deadline {
-                return Err(Error::CommandFailed(format!(
-                    "udisks didn't finish preparing {path} (no {iface})"
-                )));
+                return Err(Error::CommandFailed(
+                    t!("udisks.not_ready", detail = format!("{path}: no {iface}")).into(),
+                ));
             }
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -130,7 +131,7 @@ impl Udisks {
             })
             .map(|(path, _)| path)
             .ok_or_else(|| {
-                Error::CommandFailed(format!("udisks doesn't know {}", device.display()))
+                Error::CommandFailed(t!("udisks.unknown_device", path = device.display()).into())
             })
     }
 
@@ -147,7 +148,7 @@ impl Udisks {
     fn dismount_one(&self, objects: &Objects, cleartext: &str) -> Result<()> {
         let ifaces = objects
             .get(cleartext)
-            .ok_or_else(|| Error::CommandFailed("The volume is no longer unlocked".into()))?;
+            .ok_or_else(|| Error::CommandFailed(t!("udisks.not_unlocked").into()))?;
         if ifaces
             .get(IFACE_FILESYSTEM)
             .is_some_and(|fs| !mount_points(fs).is_empty())
@@ -157,7 +158,7 @@ impl Udisks {
         let backing = ifaces
             .get(IFACE_BLOCK)
             .and_then(|b| object_prop(b, "CryptoBackingDevice"))
-            .ok_or_else(|| Error::CommandFailed("Couldn't find the encrypted device".into()))?;
+            .ok_or_else(|| Error::CommandFailed(t!("udisks.no_backing").into()))?;
         self.call::<_, ()>(&backing, IFACE_ENCRYPTED, "Lock", &(no_options(),))?;
         if objects
             .get(backing.as_str())
@@ -175,10 +176,7 @@ impl Backend for Udisks {
     }
 
     fn check(&self) -> Result<String> {
-        Ok(format!(
-            "Using your system's disk service (udisks {})",
-            self.version
-        ))
+        Ok(t!("udisks.status", version = self.version).into())
     }
 
     fn supports_mount_point(&self) -> bool {
@@ -195,10 +193,7 @@ impl Backend for Udisks {
     fn mount(&self, request: &MountRequest) -> Result<()> {
         request.validate()?;
         if request.mount_point.is_some() {
-            return Err(Error::InvalidInput(
-                "Your system chooses where volumes appear, so “Unlock to folder” isn't available"
-                    .into(),
-            ));
+            return Err(Error::InvalidInput(t!("udisks.no_folder").into()));
         }
         let volume = request.volume.canonicalize()?;
         if self.list()?.iter().any(|v| v.volume == volume) {
@@ -210,10 +205,9 @@ impl Backend for Udisks {
         let mut keyfiles = Vec::new();
         for kf in &request.keyfiles {
             if kf.is_dir() {
-                return Err(Error::InvalidInput(format!(
-                    "Keyfile folders aren't supported here; add the files inside “{}” instead",
-                    kf.display()
-                )));
+                return Err(Error::InvalidInput(
+                    t!("udisks.keyfile_folder", path = kf.display()).into(),
+                ));
             }
             keyfiles.push(Zeroizing::new(std::fs::read(kf)?));
         }
@@ -288,7 +282,7 @@ impl Backend for Udisks {
             .into_iter()
             .find(|(_, v)| v.virtual_device == volume.virtual_device)
             .map(|(path, _)| path)
-            .ok_or_else(|| Error::CommandFailed("The volume is no longer unlocked".into()))?;
+            .ok_or_else(|| Error::CommandFailed(t!("udisks.not_unlocked").into()))?;
         self.dismount_one(&objects, &cleartext)
     }
 

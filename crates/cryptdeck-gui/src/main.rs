@@ -1,6 +1,8 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+rust_i18n::i18n!("locales", fallback = "en");
+
 mod autolock;
 mod store;
 mod tray;
@@ -19,6 +21,7 @@ use iced::widget::{
     Column,
 };
 use iced::{border, window, Alignment, Element, Length, Size, Subscription, Task, Theme};
+use rust_i18n::t;
 use secrecy::SecretString;
 use zeroize::Zeroizing;
 
@@ -28,6 +31,7 @@ const PASSWORD_ID: &str = "password";
 const ICON_RGBA: &[u8] = include_bytes!("../../../assets/icon-64.rgba");
 
 fn main() -> iced::Result {
+    select_language();
     // A daemon keeps running with no window open, so closing the window can
     // leave Cryptdeck in the system tray. Without a tray, closing quits.
     iced::daemon(App::boot, App::update, App::view)
@@ -35,6 +39,27 @@ fn main() -> iced::Result {
         .theme(App::theme)
         .subscription(App::subscription)
         .run()
+}
+
+/// Use the system language if there's a translation for it, else English.
+/// `CRYPTDECK_LANG` (e.g. `de` or `en`) overrides the system setting.
+fn select_language() {
+    let wanted = std::env::var("CRYPTDECK_LANG")
+        .ok()
+        .or_else(sys_locale::get_locale)
+        .unwrap_or_default();
+    let lang = wanted
+        .split(['-', '_', '.'])
+        .next()
+        .unwrap_or_default()
+        .to_lowercase();
+    let available = rust_i18n::available_locales!();
+    let chosen = if available.iter().any(|l| *l == lang) {
+        lang.as_str()
+    } else {
+        "en"
+    };
+    rust_i18n::set_locale(chosen);
 }
 
 fn window_settings() -> window::Settings {
@@ -76,7 +101,7 @@ struct App {
 enum AutoLockStatus {
     Starting,
     Ready { screen_lock: bool },
-    Unavailable(String),
+    Unavailable,
 }
 
 enum BackendState {
@@ -133,7 +158,7 @@ impl UnlockForm {
             "" => None,
             p => match p.parse::<u32>() {
                 Ok(n) if n <= MAX_PIM => Some(n),
-                _ => return Err(format!("PIM must be a number from 0 to {MAX_PIM}")),
+                _ => return Err(t!("pim_range", max = MAX_PIM).into()),
             },
         };
         let mount_point = match self.mount_point.trim() {
@@ -344,7 +369,7 @@ impl App {
             Message::Refreshed(Err(e)) => {
                 // When the backend itself is unavailable, the banner explains.
                 if matches!(self.backend_state, BackendState::Ready(_)) {
-                    self.notice = Some(Notice::Error(format!("Couldn't list volumes: {e}")));
+                    self.notice = Some(Notice::Error(t!("list_failed", error = e).into()));
                 }
                 Task::none()
             }
@@ -364,7 +389,7 @@ impl App {
             Message::AddVolume => Task::perform(
                 async {
                     rfd::AsyncFileDialog::new()
-                        .set_title("Choose a VeraCrypt volume")
+                        .set_title(t!("dialog.choose_volume"))
                         .pick_file()
                         .await
                         .map(|f| f.path().to_path_buf())
@@ -431,7 +456,7 @@ impl App {
             Message::AddKeyfiles => Task::perform(
                 async {
                     rfd::AsyncFileDialog::new()
-                        .set_title("Add keyfiles")
+                        .set_title(t!("dialog.add_keyfiles"))
                         .pick_files()
                         .await
                         .map(|fs| fs.iter().map(|f| f.path().to_path_buf()).collect())
@@ -466,7 +491,7 @@ impl App {
             Message::BrowseMountPoint => Task::perform(
                 async {
                     rfd::AsyncFileDialog::new()
-                        .set_title("Choose where to unlock the volume")
+                        .set_title(t!("dialog.choose_folder"))
                         .pick_folder()
                         .await
                         .map(|f| f.path().to_path_buf())
@@ -514,10 +539,9 @@ impl App {
                         if self.unlock.as_ref().is_some_and(|f| f.volume == path) {
                             self.unlock = None;
                         }
-                        self.notice = Some(Notice::Success(format!(
-                            "“{}” is unlocked",
-                            display_name(&path)
-                        )));
+                        self.notice = Some(Notice::Success(
+                            t!("notice.unlocked", name = display_name(&path)).into(),
+                        ));
                         refresh
                     }
                     Err(e) => match self.unlock.as_mut().filter(|f| f.volume == path) {
@@ -546,7 +570,9 @@ impl App {
                 let name = display_name(&volume.volume);
                 let b = self.backend.clone();
                 Task::perform(background(move || b.dismount(&volume)), move |r| {
-                    Message::Locked(r.map_err(|e| format!("Couldn't lock “{name}”: {e}")))
+                    Message::Locked(
+                        r.map_err(|e| t!("notice.lock_failed", name = name, error = e).into()),
+                    )
                 })
             }
             Message::LockAll => {
@@ -560,8 +586,10 @@ impl App {
             }
             Message::Locked(result) => {
                 let what = match self.busy.take() {
-                    Some(Busy::Locking(path)) => format!("“{}” is locked", display_name(&path)),
-                    _ => "All volumes are locked".into(),
+                    Some(Busy::Locking(path)) => {
+                        t!("notice.locked", name = display_name(&path)).into()
+                    }
+                    _ => t!("notice.all_locked").into(),
                 };
                 self.notice = Some(match result {
                     Ok(()) => Notice::Success(what),
@@ -571,18 +599,17 @@ impl App {
             }
             Message::Open(path) => {
                 if let Err(e) = open_external(path.as_os_str()) {
-                    self.notice = Some(Notice::Error(format!(
-                        "Couldn't open {}: {e}",
-                        path.display()
-                    )));
+                    self.notice = Some(Notice::Error(
+                        t!("notice.open_failed", path = path.display(), error = e).into(),
+                    ));
                 }
                 Task::none()
             }
             Message::GetVeraCrypt => {
                 if let Err(e) = open_external(OsStr::new(VERACRYPT_DOWNLOAD)) {
-                    self.notice = Some(Notice::Error(format!(
-                        "Couldn't open your browser ({e}). Visit {VERACRYPT_DOWNLOAD}"
-                    )));
+                    self.notice = Some(Notice::Error(
+                        t!("notice.browser_failed", error = e, url = VERACRYPT_DOWNLOAD).into(),
+                    ));
                 }
                 Task::none()
             }
@@ -610,7 +637,8 @@ impl App {
                     Task::none()
                 }
                 autolock::Event::Unavailable(reason) => {
-                    self.autolock_status = AutoLockStatus::Unavailable(reason);
+                    eprintln!("cryptdeck: automatic locking unavailable: {reason}");
+                    self.autolock_status = AutoLockStatus::Unavailable;
                     Task::none()
                 }
                 autolock::Event::Locked {
@@ -621,9 +649,7 @@ impl App {
                     self.unlock = None;
                     self.notice = Some(match error {
                         None => Notice::Success(autolock::describe(reason, count)),
-                        Some(e) => Notice::Error(format!(
-                            "Tried to lock your volumes automatically, but: {e}"
-                        )),
+                        Some(e) => Notice::Error(t!("notice.autolock_failed", error = e).into()),
                     });
                     self.refresh()
                 }
@@ -729,10 +755,9 @@ impl App {
     /// Remember a volume and open its unlock form.
     fn add_volume(&mut self, path: PathBuf) -> Task<Message> {
         if path.is_dir() {
-            self.notice = Some(Notice::Error(format!(
-                "“{}” is a folder. Choose the VeraCrypt volume file instead.",
-                display_name(&path)
-            )));
+            self.notice = Some(Notice::Error(
+                t!("notice.is_folder", name = display_name(&path)).into(),
+            ));
             return Task::none();
         }
         let path = path.canonicalize().unwrap_or(path);
@@ -757,15 +782,17 @@ impl App {
 
     fn persist_settings(&mut self) {
         if let Err(e) = store::save_settings(&self.settings) {
-            self.notice = Some(Notice::Error(format!("Couldn't save your settings: {e}")));
+            self.notice = Some(Notice::Error(
+                t!("notice.settings_save_failed", error = e).into(),
+            ));
         }
     }
 
     fn persist(&mut self) {
         if let Err(e) = store::save(&self.saved) {
-            self.notice = Some(Notice::Error(format!(
-                "Couldn't save your volume list: {e}"
-            )));
+            self.notice = Some(Notice::Error(
+                t!("notice.list_save_failed", error = e).into(),
+            ));
         }
     }
 
@@ -800,9 +827,8 @@ impl App {
         if self.drop_hover {
             return container(
                 column![
-                    text("Drop to add this volume").size(22),
-                    text("Cryptdeck will remember it, and ask for its password.")
-                        .style(text::secondary),
+                    text(t!("drop.title")).size(22),
+                    text(t!("drop.body")).style(text::secondary),
                 ]
                 .spacing(8)
                 .align_x(Alignment::Center),
@@ -840,7 +866,7 @@ impl App {
                 list = list.push(self.volume_card(entry));
             }
             page = page
-                .push(text("Your volumes").size(18))
+                .push(text(t!("list.title")).size(18))
                 .push(list)
                 .push(self.footer());
         }
@@ -856,7 +882,7 @@ impl App {
 
     fn header(&self) -> Element<'_, Message> {
         let status = match &self.backend_state {
-            BackendState::Checking => "Checking…".to_string(),
+            BackendState::Checking => t!("header.checking").into(),
             BackendState::Ready(version) => version.clone(),
             BackendState::Missing | BackendState::Broken(_) => String::new(),
         };
@@ -866,9 +892,9 @@ impl App {
             text(status).size(12).style(text::secondary),
             button(
                 text(if self.show_settings {
-                    "Close settings"
+                    t!("header.close_settings")
                 } else {
-                    "Settings"
+                    t!("header.settings")
                 })
                 .size(13)
             )
@@ -884,38 +910,26 @@ impl App {
         let (available, screen_lock, status) = match &self.autolock_status {
             AutoLockStatus::Starting => (true, true, None),
             AutoLockStatus::Ready { screen_lock: true } => (true, true, None),
-            AutoLockStatus::Ready { screen_lock: false } => (
-                true,
-                false,
-                Some(
-                    "Your system doesn't report screen locks, so that option isn't available."
-                        .to_string(),
-                ),
-            ),
-            AutoLockStatus::Unavailable(reason) => (
-                false,
-                false,
-                Some(format!(
-                    "Automatic locking isn't available here ({reason})."
-                )),
-            ),
+            AutoLockStatus::Ready { screen_lock: false } => {
+                (true, false, Some(t!("settings.no_screen_lock").to_string()))
+            }
+            AutoLockStatus::Unavailable => {
+                (false, false, Some(t!("settings.unavailable").to_string()))
+            }
         };
         let mut col = column![
-            text("Automatic locking").size(16),
+            text(t!("settings.autolock")).size(16),
             checkbox(self.settings.lock_on_sleep)
-                .label("Lock all volumes when the computer goes to sleep")
+                .label(t!("settings.on_sleep"))
                 .on_toggle_maybe(available.then_some(Message::LockOnSleepToggled)),
             checkbox(self.settings.lock_on_screen_lock)
-                .label("Lock all volumes when the screen locks")
+                .label(t!("settings.on_screen_lock"))
                 .on_toggle_maybe(
                     (available && screen_lock).then_some(Message::LockOnScreenLockToggled)
                 ),
-            text(
-                "Volumes with files still open can't be locked. If that happens, \
-                 Cryptdeck tells you."
-            )
-            .size(12)
-            .style(text::secondary),
+            text(t!("settings.open_files"))
+                .size(12)
+                .style(text::secondary),
         ]
         .spacing(10);
         if let Some(status) = status {
@@ -931,12 +945,10 @@ impl App {
     fn backend_banner(&self) -> Option<Element<'_, Message>> {
         let (title, body) = match &self.backend_state {
             BackendState::Missing => (
-                "VeraCrypt is needed",
-                "Cryptdeck uses VeraCrypt to unlock volumes, and it doesn't seem to be \
-                 installed. Install it, then choose Check again."
-                    .to_string(),
+                t!("banner.missing.title"),
+                t!("banner.missing.body").to_string(),
             ),
-            BackendState::Broken(e) => ("VeraCrypt isn't working", e.clone()),
+            BackendState::Broken(e) => (t!("banner.broken.title"), e.clone()),
             _ => return None,
         };
         Some(
@@ -945,8 +957,8 @@ impl App {
                     text(title).size(16),
                     text(body).size(14),
                     row![
-                        button("Get VeraCrypt").on_press(Message::GetVeraCrypt),
-                        button("Check again")
+                        button(text(t!("banner.get"))).on_press(Message::GetVeraCrypt),
+                        button(text(t!("banner.check_again")))
                             .style(button::secondary)
                             .on_press(Message::Recheck),
                     ]
@@ -970,7 +982,7 @@ impl App {
             container(
                 row![
                     text(message.as_str()).width(Length::Fill),
-                    button(text("Dismiss").size(13))
+                    button(text(t!("dismiss")).size(13))
                         .style(button::text)
                         .on_press(Message::DismissNotice),
                 ]
@@ -994,14 +1006,11 @@ impl App {
     fn empty_state(&self) -> Element<'_, Message> {
         container(
             column![
-                text("No volumes yet").size(22),
-                text(
-                    "Add a VeraCrypt volume to get started. \
-                     You can also drag a volume file onto this window."
-                )
-                .style(text::secondary)
-                .align_x(Alignment::Center),
-                button(text("Add volume…").size(16))
+                text(t!("empty.title")).size(22),
+                text(t!("empty.body"))
+                    .style(text::secondary)
+                    .align_x(Alignment::Center),
+                button(text(t!("add_volume")).size(16))
                     .padding([10, 24])
                     .on_press(Message::AddVolume),
             ]
@@ -1018,16 +1027,14 @@ impl App {
         let any_mounted = !self.mounted.is_empty();
         column![
             row![
-                button("Add volume…")
+                button(text(t!("add_volume")))
                     .style(button::secondary)
                     .on_press(Message::AddVolume),
-                text("or drag a volume file onto this window")
-                    .size(13)
-                    .style(text::secondary),
+                text(t!("footer.drag")).size(13).style(text::secondary),
                 space::horizontal(),
                 if any_mounted {
                     Element::from(
-                        button("Lock all")
+                        button(text(t!("lock_all")))
                             .style(button::secondary)
                             .on_press_maybe(self.busy.is_none().then_some(Message::LockAll)),
                     )
@@ -1038,11 +1045,9 @@ impl App {
             .spacing(12)
             .align_y(Alignment::Center),
             text(if self.tray.is_some() {
-                "Unlocked volumes stay unlocked until you lock them. Closing this \
-                 window keeps Cryptdeck in the system tray."
+                t!("footer.tray")
             } else {
-                "Unlocked volumes stay unlocked until you lock them, \
-                 even after you close Cryptdeck."
+                t!("footer.stay_unlocked")
             })
             .size(12)
             .style(text::secondary),
@@ -1054,15 +1059,15 @@ impl App {
     fn volume_card<'a>(&'a self, entry: &Entry<'a>) -> Element<'a, Message> {
         let unlocked = entry.mounted.is_some();
         let subtitle = match entry.mounted.and_then(|m| m.mount_point.as_ref()) {
-            Some(mp) => format!("Unlocked at {}", mp.display()),
-            None if unlocked => "Unlocked".to_string(),
+            Some(mp) => t!("card.unlocked_at", path = mp.display()).into(),
+            None if unlocked => t!("status.unlocked").into(),
             None => entry.path.parent().map(pretty_dir).unwrap_or_default(),
         };
 
         let busy_label = match &self.busy {
-            Some(Busy::Unlocking(p)) if p == entry.path => Some("Unlocking…"),
-            Some(Busy::Locking(p)) if p == entry.path => Some("Locking…"),
-            Some(Busy::LockingAll) if unlocked => Some("Locking…"),
+            Some(Busy::Unlocking(p)) if p == entry.path => Some(t!("busy.unlocking")),
+            Some(Busy::Locking(p)) if p == entry.path => Some(t!("busy.locking")),
+            Some(Busy::LockingAll) if unlocked => Some(t!("busy.locking")),
             _ => None,
         };
         let form_open = self.unlock.as_ref().filter(|f| f.volume == entry.path);
@@ -1073,8 +1078,8 @@ impl App {
             text(label).style(text::secondary).into()
         } else if let Some(m) = entry.mounted {
             row![
-                button("Open").on_press_maybe(m.mount_point.clone().map(Message::Open)),
-                button("Lock")
+                button(text(t!("open"))).on_press_maybe(m.mount_point.clone().map(Message::Open)),
+                button(text(t!("lock")))
                     .style(button::secondary)
                     .on_press_maybe(idle.then(|| Message::Lock(m.clone()))),
             ]
@@ -1083,14 +1088,14 @@ impl App {
         } else if form_open.is_some() {
             space::horizontal().width(0).into()
         } else {
-            let mut r = row![button("Unlock").on_press_maybe(
+            let mut r = row![button(text(t!("unlock"))).on_press_maybe(
                 can_unlock.then(|| Message::StartUnlock(entry.path.to_path_buf()))
             )]
             .spacing(4)
             .align_y(Alignment::Center);
             if entry.saved {
                 r = r.push(
-                    button(text("Forget").size(13))
+                    button(text(t!("forget")).size(13))
                         .style(button::text)
                         .on_press_maybe(idle.then(|| Message::Forget(entry.path.to_path_buf()))),
                 );
@@ -1126,7 +1131,7 @@ impl App {
         let busy = self.busy.is_some();
 
         let password = row![
-            text_input("Password", f.password.0.as_str())
+            text_input(&t!("password"), f.password.0.as_str())
                 .id(PASSWORD_ID)
                 .secure(!f.show_password)
                 .on_input_maybe(
@@ -1134,28 +1139,36 @@ impl App {
                 )
                 .on_submit(Message::Unlock)
                 .padding(10),
-            button(if f.show_password { "Hide" } else { "Show" })
-                .style(button::secondary)
-                .padding(10)
-                .on_press(Message::ToggleShowPassword),
+            button(text(if f.show_password {
+                t!("hide")
+            } else {
+                t!("show")
+            }))
+            .style(button::secondary)
+            .padding(10)
+            .on_press(Message::ToggleShowPassword),
         ]
         .spacing(8)
         .align_y(Alignment::Center);
 
-        let unlock_label = if busy { "Unlocking…" } else { "Unlock" };
+        let unlock_label = if busy {
+            t!("busy.unlocking")
+        } else {
+            t!("unlock")
+        };
         let buttons = row![
-            button(unlock_label)
+            button(text(unlock_label))
                 .padding([8, 20])
                 .on_press_maybe((!busy).then_some(Message::Unlock)),
-            button("Cancel")
+            button(text(t!("cancel")))
                 .style(button::text)
                 .on_press_maybe((!busy).then_some(Message::CancelUnlock)),
             space::horizontal(),
             button(
                 text(if f.advanced {
-                    "Hide advanced options"
+                    t!("advanced.hide")
                 } else {
-                    "Advanced options"
+                    t!("advanced.show")
                 })
                 .size(13)
             )
@@ -1177,18 +1190,18 @@ impl App {
     }
 
     fn advanced_options<'a>(&'a self, f: &'a UnlockForm, busy: bool) -> Element<'a, Message> {
-        let label = |s| text(s).width(150);
-        let hint = |s| text(s).size(12).style(text::secondary);
+        let label = |s: String| text(s).width(180);
+        let hint = |s: String| text(s).size(12).style(text::secondary);
 
         let pim = row![
-            label("PIM"),
+            label("PIM".into()),
             column![
-                text_input("Leave empty for the default", &f.pim)
+                text_input(&t!("pim.placeholder"), &f.pim)
                     .secure(true)
                     .on_input_maybe((!busy).then_some(Message::PimChanged))
                     .on_submit(Message::Unlock)
-                    .width(240),
-                hint("Only needed if you chose a PIM when creating the volume."),
+                    .width(320),
+                hint(t!("pim.hint").into()),
             ]
             .spacing(4),
         ]
@@ -1199,7 +1212,7 @@ impl App {
             keyfile_list = keyfile_list.push(
                 row![
                     text(kf.display().to_string()).size(13).width(Length::Fill),
-                    button(text("Remove").size(12))
+                    button(text(t!("remove")).size(12))
                         .style(button::text)
                         .on_press(Message::RemoveKeyfile(i)),
                 ]
@@ -1207,10 +1220,10 @@ impl App {
             );
         }
         let keyfiles = row![
-            label("Keyfiles"),
+            label(t!("keyfiles").into()),
             column![
                 keyfile_list,
-                button("Add keyfiles…")
+                button(text(t!("add_keyfiles")))
                     .style(button::secondary)
                     .on_press(Message::AddKeyfiles),
             ]
@@ -1221,11 +1234,11 @@ impl App {
 
         let mount_point: Element<_> = if !self.backend.supports_mount_point() {
             row![
-                label("Unlock to folder"),
+                label(t!("folder.label").into()),
                 hint(if cfg!(windows) {
-                    "Cryptdeck picks a free drive letter, like for a USB stick."
+                    t!("folder.windows").into()
                 } else {
-                    "Your system chooses the folder (under /run/media), like for a USB stick."
+                    t!("folder.system").into()
                 })
                 .width(Length::Fill),
             ]
@@ -1233,19 +1246,19 @@ impl App {
             .into()
         } else {
             row![
-                label("Unlock to folder"),
+                label(t!("folder.label").into()),
                 column![
                     row![
-                        text_input("Leave empty to let VeraCrypt choose", &f.mount_point)
+                        text_input(&t!("folder.placeholder"), &f.mount_point)
                             .on_input_maybe((!busy).then_some(Message::MountPointChanged))
                             .on_submit(Message::Unlock),
-                        button("Choose…")
+                        button(text(t!("choose")))
                             .style(button::secondary)
                             .on_press(Message::BrowseMountPoint),
                     ]
                     .spacing(8)
                     .align_y(Alignment::Center),
-                    hint("The folder where the volume's files will appear."),
+                    hint(t!("folder.hint").into()),
                 ]
                 .spacing(4)
                 .width(Length::Fill),
@@ -1255,21 +1268,21 @@ impl App {
         };
 
         let hidden = row![
-            label(""),
+            label(String::new()),
             column![
                 checkbox(f.hidden)
-                    .label("Open the hidden volume")
+                    .label(t!("hidden.label"))
                     .on_toggle(Message::HiddenToggled),
-                hint("For a hidden volume inside this one: enter the hidden volume's password above."),
+                hint(t!("hidden.hint").into()),
             ]
             .spacing(4),
         ]
         .spacing(8);
 
         let read_only = row![
-            label(""),
+            label(String::new()),
             checkbox(f.read_only)
-                .label("Open read-only (nothing can be changed)")
+                .label(t!("read_only"))
                 .on_toggle(Message::ReadOnlyToggled),
         ]
         .spacing(8);
@@ -1297,23 +1310,30 @@ fn window_events() -> Subscription<Message> {
 }
 
 fn status_pill<'a>(unlocked: bool) -> Element<'a, Message> {
-    container(text(if unlocked { "Unlocked" } else { "Locked" }).size(12))
-        .padding([2, 10])
-        .style(move |theme: &Theme| {
-            let p = theme.extended_palette();
-            let pair = if unlocked {
-                p.success.base
-            } else {
-                p.background.strong
-            };
-            container::Style {
-                background: Some(pair.color.into()),
-                text_color: Some(pair.text),
-                border: border::rounded(10),
-                ..container::Style::default()
-            }
+    container(
+        text(if unlocked {
+            t!("status.unlocked")
+        } else {
+            t!("status.locked")
         })
-        .into()
+        .size(12),
+    )
+    .padding([2, 10])
+    .style(move |theme: &Theme| {
+        let p = theme.extended_palette();
+        let pair = if unlocked {
+            p.success.base
+        } else {
+            p.background.strong
+        };
+        container::Style {
+            background: Some(pair.color.into()),
+            text_color: Some(pair.text),
+            border: border::rounded(10),
+            ..container::Style::default()
+        }
+    })
+    .into()
 }
 
 /// A card: the window background with a subtle border and rounded corners.
@@ -1377,10 +1397,7 @@ fn run_blocking<T: Send + 'static>(
     std::thread::spawn(move || {
         let _ = tx.send(f());
     });
-    async move {
-        rx.await
-            .map_err(|_| "Internal error: a background task crashed".to_string())
-    }
+    async move { rx.await.map_err(|_| t!("internal_error").to_string()) }
 }
 
 /// Open a folder in the file manager, or a URL in the browser.
@@ -1416,5 +1433,42 @@ mod tests {
         let p = Password(Zeroizing::new("hunter2".into()));
         let shown = format!("{:?}", Message::PasswordChanged(p));
         assert!(!shown.contains("hunter2"), "{shown}");
+    }
+}
+
+#[cfg(test)]
+mod translation_tests {
+    /// Every `t!("key")` in the source must exist in English and German;
+    /// a missing key would show up in the UI as the raw key.
+    #[test]
+    fn every_key_is_translated() {
+        let sources = [
+            include_str!("main.rs"),
+            include_str!("tray.rs"),
+            include_str!("autolock.rs"),
+        ];
+        let mut keys: Vec<&str> = Vec::new();
+        for src in sources {
+            // Skip this test module, whose comments mention `t!`.
+            let src = src.split("mod translation_tests").next().unwrap_or(src);
+            for (i, _) in src.match_indices("t!(\"") {
+                // A standalone `t!(`, not the end of e.g. `format!(`.
+                let before = src[..i].chars().next_back().unwrap_or(' ');
+                if before.is_alphanumeric() || before == '_' {
+                    continue;
+                }
+                let rest = &src[i + 4..];
+                keys.extend(rest.split('"').next());
+            }
+        }
+        keys.sort();
+        keys.dedup();
+        assert!(keys.len() > 60, "found only {} keys", keys.len());
+        for locale in ["en", "de"] {
+            for key in &keys {
+                let text = rust_i18n::t!(*key, locale = locale);
+                assert_ne!(&*text, *key, "{key} has no {locale} translation");
+            }
+        }
     }
 }

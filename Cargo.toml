@@ -13,4 +13,3 @@ rust-version = "1.85"
 cryptdeck-core = { path = "crates/cryptdeck-core" }
 secrecy = "0.10"
 zeroize = "1.8"
-thiserror = "2"

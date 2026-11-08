@@ -279,15 +279,12 @@ mod imp {
 
 /// A short description of what happened, for the notice banner.
 pub fn describe(reason: Reason, count: usize) -> String {
-    let what = match count {
-        1 => "1 volume".to_string(),
-        n => format!("{n} volumes"),
-    };
-    let why = match reason {
-        Reason::Sleep => "the computer went to sleep",
-        Reason::ScreenLock => "the screen was locked",
-    };
-    format!("Locked {what} because {why}")
+    match (reason, count) {
+        (Reason::Sleep, 1) => rust_i18n::t!("autolock.sleep_one").into(),
+        (Reason::Sleep, n) => rust_i18n::t!("autolock.sleep_many", count = n).into(),
+        (Reason::ScreenLock, 1) => rust_i18n::t!("autolock.screen_one").into(),
+        (Reason::ScreenLock, n) => rust_i18n::t!("autolock.screen_many", count = n).into(),
+    }
 }
 
 #[cfg(test)]

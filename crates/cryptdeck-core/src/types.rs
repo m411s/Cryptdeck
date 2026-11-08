@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use secrecy::{ExposeSecret, SecretString};
 
+use rust_i18n::t;
+
 use crate::{Error, Result};
 
 /// Largest PIM value VeraCrypt accepts.
@@ -34,64 +36,55 @@ impl MountRequest {
     /// Check the request for problems that can be caught before running anything.
     pub fn validate(&self) -> Result<()> {
         if self.volume.as_os_str().is_empty() {
-            return Err(Error::InvalidInput("Choose a volume to mount".into()));
+            return Err(Error::InvalidInput(t!("validate.choose_volume").into()));
         }
         if !self.volume.exists() {
-            return Err(Error::InvalidInput(format!(
-                "Volume not found: {}",
-                self.volume.display()
-            )));
+            return Err(Error::InvalidInput(
+                t!("validate.not_found", path = self.volume.display()).into(),
+            ));
         }
         if self.volume.is_dir() {
-            return Err(Error::InvalidInput(format!(
-                "The volume must be a file or a device, not a folder: {}",
-                self.volume.display()
-            )));
+            return Err(Error::InvalidInput(
+                t!("validate.is_folder", path = self.volume.display()).into(),
+            ));
         }
         if let Some(mp) = &self.mount_point {
             if !mp.is_dir() {
-                return Err(Error::InvalidInput(format!(
-                    "Mount point is not a directory: {}",
-                    mp.display()
-                )));
+                return Err(Error::InvalidInput(
+                    t!("validate.mount_point_not_dir", path = mp.display()).into(),
+                ));
             }
         }
         let password = self.password.expose_secret();
         if password.is_empty() && self.keyfiles.is_empty() {
-            return Err(Error::InvalidInput(
-                "Enter a password or add at least one keyfile".into(),
-            ));
+            return Err(Error::InvalidInput(t!("validate.need_password").into()));
         }
         if password.len() > MAX_PASSWORD_BYTES {
-            return Err(Error::InvalidInput(format!(
-                "VeraCrypt passwords can be at most {MAX_PASSWORD_BYTES} bytes long"
-            )));
+            return Err(Error::InvalidInput(
+                t!("validate.password_too_long", max = MAX_PASSWORD_BYTES).into(),
+            ));
         }
         if password.contains(['\n', '\r']) {
-            return Err(Error::InvalidInput(
-                "Passwords containing line breaks are not supported".into(),
-            ));
+            return Err(Error::InvalidInput(t!("validate.line_breaks").into()));
         }
         if let Some(pim) = self.pim {
             if pim > MAX_PIM {
-                return Err(Error::InvalidInput(format!(
-                    "PIM must be at most {MAX_PIM}"
-                )));
+                return Err(Error::InvalidInput(
+                    t!("validate.pim_max", max = MAX_PIM).into(),
+                ));
             }
         }
         for kf in &self.keyfiles {
             if !kf.exists() {
-                return Err(Error::InvalidInput(format!(
-                    "Keyfile not found: {}",
-                    kf.display()
-                )));
+                return Err(Error::InvalidInput(
+                    t!("validate.keyfile_not_found", path = kf.display()).into(),
+                ));
             }
             // VeraCrypt takes keyfiles as a comma-separated list.
             if kf.to_string_lossy().contains(',') {
-                return Err(Error::InvalidInput(format!(
-                    "Keyfile paths containing commas are not supported: {}",
-                    kf.display()
-                )));
+                return Err(Error::InvalidInput(
+                    t!("validate.keyfile_comma", path = kf.display()).into(),
+                ));
             }
         }
         Ok(())

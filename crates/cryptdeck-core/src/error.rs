@@ -1,41 +1,54 @@
+use rust_i18n::t;
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, thiserror::Error)]
+/// Errors from a backend. `Display` gives a message for the user, in the
+/// current language (see `rust_i18n::set_locale`).
+#[derive(Debug)]
 pub enum Error {
-    #[error("{0} was not found. Is it installed and on your PATH?")]
     NotInstalled(String),
-
-    #[error(
-        "Wrong password, or this isn't a VeraCrypt volume. If you set a PIM or keyfiles \
-         when you created the volume, or it's a hidden volume, set that under Advanced options."
-    )]
     WrongPassword,
-
-    #[error("This volume is already unlocked")]
     AlreadyMounted,
-
-    #[error("The volume is in use. Close any files or windows that use it, then try again.")]
     VolumeBusy,
-
-    #[error("{0}")]
+    /// Already-translated message about the user's input.
     InvalidInput(String),
-
-    #[error("Administrator authentication was cancelled")]
     AuthCancelled,
-
-    #[error(
-        "Refusing to run {} as administrator: it and its folder must be owned by root \
-         and not writable by other users. Install VeraCrypt system-wide, or point \
-         CRYPTDECK_VERACRYPT at a root-owned copy.",
-        .0.display()
-    )]
     UntrustedBinary(std::path::PathBuf),
-
-    #[error("{0}")]
+    /// A message from a tool or service, or an already-translated one.
     CommandFailed(String),
+    Io(std::io::Error),
+}
 
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::NotInstalled(name) => f.write_str(&t!("error.not_installed", name = name)),
+            Error::WrongPassword => f.write_str(&t!("error.wrong_password")),
+            Error::AlreadyMounted => f.write_str(&t!("error.already_mounted")),
+            Error::VolumeBusy => f.write_str(&t!("error.busy")),
+            Error::AuthCancelled => f.write_str(&t!("error.auth_cancelled")),
+            Error::UntrustedBinary(path) => {
+                f.write_str(&t!("error.untrusted_binary", path = path.display()))
+            }
+            Error::InvalidInput(msg) | Error::CommandFailed(msg) => f.write_str(msg),
+            Error::Io(e) => e.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::Io(e)
+    }
 }
 
 /// Recognise common failures (from VeraCrypt or cryptsetup) so the UI can explain them plainly.

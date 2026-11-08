@@ -13,6 +13,8 @@ name = "cryptdeck"
 path = "src/main.rs"
 
 [dependencies]
+rust-i18n = "4"
+sys-locale = "0.3"
 cryptdeck-core.workspace = true
 secrecy.workspace = true
 zeroize.workspace = true

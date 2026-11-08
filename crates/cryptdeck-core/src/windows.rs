@@ -115,6 +115,8 @@ mod imp {
     };
     use windows_sys::Win32::System::IO::DeviceIoControl;
 
+    use rust_i18n::t;
+
     use super::{free_drive_letter, mount_args, parse_mount_list, veracrypt_exe};
     use crate::{Backend, Error, MountRequest, MountedVolume, Result};
 
@@ -190,9 +192,9 @@ mod imp {
             // SAFETY: `handle` was opened above and is closed exactly once.
             unsafe { CloseHandle(handle) };
             if ok == 0 {
-                return Err(Error::CommandFailed(format!(
-                    "Couldn't ask VeraCrypt which volumes are unlocked ({error})"
-                )));
+                return Err(Error::CommandFailed(
+                    t!("windows.list_failed", error = error).into(),
+                ));
             }
             Ok(parse_mount_list(&buf[..returned as usize]))
         }
@@ -211,10 +213,11 @@ mod imp {
 
         fn check(&self) -> Result<String> {
             let exe = veracrypt_exe()?;
-            Ok(format!(
-                "Using VeraCrypt ({})",
-                exe.parent().unwrap_or(&exe).display()
-            ))
+            Ok(t!(
+                "windows.status",
+                path = exe.parent().unwrap_or(&exe).display()
+            )
+            .into())
         }
 
         fn supports_mount_point(&self) -> bool {
@@ -247,19 +250,14 @@ mod imp {
             // in a way that matters here (0 just means "none in use").
             let used = unsafe { GetLogicalDrives() };
             let letter = free_drive_letter(used)
-                .ok_or_else(|| Error::CommandFailed("No free drive letter".into()))?;
+                .ok_or_else(|| Error::CommandFailed(t!("windows.no_letter").into()))?;
             let mut req_args = mount_args(request, letter);
             // VeraCrypt resolves paths itself; give it the plain form.
             req_args[1] = plain(&volume);
             if self.run(&req_args)? {
                 Ok(())
             } else {
-                Err(Error::CommandFailed(
-                    "VeraCrypt couldn't unlock the volume. Check the password, PIM and \
-                     keyfiles (and \"Open the hidden volume\" for a hidden one). If they're \
-                     right, try unlocking it in VeraCrypt itself to see its full message."
-                        .into(),
-                ))
+                Err(Error::CommandFailed(t!("windows.unlock_failed").into()))
             }
         }
 

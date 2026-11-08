@@ -28,6 +28,15 @@ Cryptdeck remembers the volumes you add (just their location, never
 passwords), so next time you only need to choose **Unlock**. Unlocked
 volumes stay unlocked until you lock them, even after you close Cryptdeck.
 
+### Languages
+
+Cryptdeck is available in English and German, and follows your system
+language (set `CRYPTDECK_LANG=de` or `en` to choose). To add a language,
+add its code next to `en` and `de` under every key in
+`crates/cryptdeck-gui/locales/app.yml` and
+`crates/cryptdeck-core/locales/core.yml`. A test fails if any text used by
+the app is missing in a language.
+
 ### Automatic locking (Linux)
 
 Under **Settings**, Cryptdeck can lock all volumes when the computer goes to
@@ -126,6 +135,7 @@ CRYPTDECK_BACKEND=mock cargo run
 | `CRYPTDECK_BACKEND=udisks`, `veracrypt` or `mock` | Force a backend (`mock` is an in-memory demo) |
 | `CRYPTDECK_VERACRYPT=/path/to/veracrypt` | Use a specific `veracrypt` binary (it must be root-owned to mount) |
 | `CRYPTDECK_THEME=light` or `dark` | Override the system light/dark mode |
+| `CRYPTDECK_LANG=de` or `en` | Override the system language |
 | `CRYPTDECK_CONFIG_DIR=/path` | Keep the saved volume list somewhere else |
 
 The saved volume list is `volumes.json` in your config folder:
@@ -201,6 +211,8 @@ workflow artifacts.
 - [ ] Hidden volume protection
 - [x] System tray (Linux)
 - [x] Lock on sleep and screen lock (Linux)
+- [x] Hidden volumes
+- [x] German translation
 - [ ] System tray (macOS, Windows)
 - [ ] Developer ID signing and notarization (macOS), code signing (Windows)
 - [ ] Volume creation wizard
