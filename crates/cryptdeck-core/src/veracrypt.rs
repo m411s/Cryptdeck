@@ -186,6 +186,9 @@ fn args(list: &[&str]) -> Vec<OsString> {
 }
 
 /// Build the argument list for a mount. Kept separate so it can be unit tested.
+///
+/// `req.hidden` needs no flag: VeraCrypt tries the hidden volume's header
+/// with the password by itself.
 pub(crate) fn mount_args(req: &MountRequest) -> Result<Vec<OsString>> {
     let mut a = args(&[
         "--text",
@@ -454,6 +457,7 @@ mod tests {
             pim: Some(500),
             keyfiles: vec!["/k/one".into(), "/k/two".into()],
             read_only: true,
+            hidden: false,
         };
         let a: Vec<String> = mount_args(&req)
             .unwrap()
@@ -478,6 +482,7 @@ mod tests {
             pim: None,
             keyfiles: vec![],
             read_only: false,
+            hidden: false,
         };
         let a = mount_args(&req).unwrap();
         assert!(a.contains(&OsString::from("--pim=0")));

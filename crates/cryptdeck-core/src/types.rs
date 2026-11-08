@@ -25,6 +25,9 @@ pub struct MountRequest {
     pub pim: Option<u32>,
     pub keyfiles: Vec<PathBuf>,
     pub read_only: bool,
+    /// Open the hidden volume inside this one, using its password. (The
+    /// VeraCrypt CLI finds hidden volumes by itself; udisks needs telling.)
+    pub hidden: bool,
 }
 
 impl MountRequest {
@@ -121,6 +124,7 @@ mod tests {
             pim: None,
             keyfiles: vec![],
             read_only: false,
+            hidden: false,
         }
     }
 

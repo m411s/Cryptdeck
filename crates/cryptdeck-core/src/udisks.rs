@@ -253,6 +253,9 @@ impl Backend for Udisks {
             options.insert("keyfiles", Value::from(contents));
         }
         options.insert("read-only", Value::from(request.read_only));
+        if request.hidden {
+            options.insert("hidden", Value::from(true));
+        }
         let password = request.password.expose_secret();
         let cleartext: OwnedObjectPath =
             match self.call(&crypto, IFACE_ENCRYPTED, "Unlock", &(password, options)) {

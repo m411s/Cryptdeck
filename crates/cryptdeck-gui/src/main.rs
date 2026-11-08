@@ -105,6 +105,7 @@ struct UnlockForm {
     pim: String,
     keyfiles: Vec<PathBuf>,
     read_only: bool,
+    hidden: bool,
     mount_point: String,
     error: Option<String>,
 }
@@ -119,6 +120,7 @@ impl UnlockForm {
             pim: String::new(),
             keyfiles: Vec::new(),
             read_only: false,
+            hidden: false,
             mount_point: String::new(),
             error: None,
         }
@@ -145,6 +147,7 @@ impl UnlockForm {
             pim,
             keyfiles: self.keyfiles.clone(),
             read_only: self.read_only,
+            hidden: self.hidden,
         };
         request.validate().map_err(|e| e.to_string())?;
         Ok(request)
@@ -192,6 +195,7 @@ enum Message {
     ToggleAdvanced,
     PimChanged(String),
     ReadOnlyToggled(bool),
+    HiddenToggled(bool),
     AddKeyfiles,
     KeyfilesPicked(Vec<PathBuf>),
     RemoveKeyfile(usize),
@@ -415,6 +419,12 @@ impl App {
             Message::ReadOnlyToggled(ro) => {
                 if let Some(f) = &mut self.unlock {
                     f.read_only = ro;
+                }
+                Task::none()
+            }
+            Message::HiddenToggled(hidden) => {
+                if let Some(f) = &mut self.unlock {
+                    f.hidden = hidden;
                 }
                 Task::none()
             }
@@ -1240,6 +1250,18 @@ impl App {
             .into()
         };
 
+        let hidden = row![
+            label(""),
+            column![
+                checkbox(f.hidden)
+                    .label("Open the hidden volume")
+                    .on_toggle(Message::HiddenToggled),
+                hint("For a hidden volume inside this one: enter the hidden volume's password above."),
+            ]
+            .spacing(4),
+        ]
+        .spacing(8);
+
         let read_only = row![
             label(""),
             checkbox(f.read_only)
@@ -1248,7 +1270,7 @@ impl App {
         ]
         .spacing(8);
 
-        container(column![pim, keyfiles, mount_point, read_only].spacing(14))
+        container(column![pim, keyfiles, mount_point, hidden, read_only].spacing(14))
             .padding(iced::Padding::new(0.0).top(6))
             .into()
     }

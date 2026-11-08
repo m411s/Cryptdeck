@@ -7,7 +7,7 @@ pub enum Error {
 
     #[error(
         "Wrong password, or this isn't a VeraCrypt volume. If you set a PIM or keyfiles \
-         when you created the volume, add them under Advanced options."
+         when you created the volume, or it's a hidden volume, set that under Advanced options."
     )]
     WrongPassword,
 
