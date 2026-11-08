@@ -3,7 +3,7 @@
 #
 #   packaging/linux/build-appimage.sh <cryptdeck-binary> <version> [output-dir]
 #
-# Needs network access the first time, to fetch appimagetool.
+# Needs network access to fetch appimagetool and the AppImage runtime.
 set -euo pipefail
 
 bin=$1
@@ -29,19 +29,32 @@ install -m 644 "$root/assets/cryptdeck.png" "$appdir/usr/share/icons/hicolor/256
 install -m 644 "$root/assets/cryptdeck.png" "$appdir/cryptdeck.png"
 ln -s cryptdeck.png "$appdir/.DirIcon"
 
-# appimagetool is not packaged by distributions, so use the official build.
-# Set APPIMAGETOOL to a local copy to skip the download (or to pin a version).
+fetch() {
+    # GitHub release downloads fail now and then (5xx), so retry.
+    curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "$1" "$2"
+}
+
+# appimagetool and the AppImage runtime aren't packaged by distributions, so
+# use the official builds. Set APPIMAGETOOL / APPIMAGE_RUNTIME to local copies
+# to skip the downloads (or to pin versions).
 tool=${APPIMAGETOOL:-}
 if [ -z "$tool" ]; then
     tool="$work/appimagetool"
-    curl -fsSL -o "$tool" \
+    fetch "$tool" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${arch}.AppImage"
     chmod +x "$tool"
+fi
+runtime=${APPIMAGE_RUNTIME:-}
+if [ -z "$runtime" ]; then
+    runtime="$work/runtime-${arch}"
+    fetch "$runtime" \
+        "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${arch}"
 fi
 
 mkdir -p "$out"
 # CI runners have no FUSE, so let the tool unpack itself instead of mounting.
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$arch" VERSION="$version" \
-    "$tool" --no-appstream "$appdir" "$out/Cryptdeck-${version}-${arch}.AppImage"
+    "$tool" --no-appstream --runtime-file "$runtime" \
+    "$appdir" "$out/Cryptdeck-${version}-${arch}.AppImage"
 
 echo "Built $out/Cryptdeck-${version}-${arch}.AppImage"
