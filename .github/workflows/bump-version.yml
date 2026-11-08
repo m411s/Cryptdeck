@@ -32,8 +32,8 @@ jobs:
         run: |
           echo "::error::Run this on main (it was started on ${GITHUB_REF_NAME})"
           exit 1
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - id: bump
         env:
           BUMP: ${{ inputs.bump }}

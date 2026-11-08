@@ -29,26 +29,40 @@ install -m 644 "$root/assets/cryptdeck.png" "$appdir/usr/share/icons/hicolor/256
 install -m 644 "$root/assets/cryptdeck.png" "$appdir/cryptdeck.png"
 ln -s cryptdeck.png "$appdir/.DirIcon"
 
+# fetch <file> <url> [sha256]
 fetch() {
     # GitHub release downloads fail now and then (5xx), so retry.
     curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "$1" "$2"
+    local actual
+    actual=$(sha256sum "$1" | cut -d' ' -f1)
+    # Logged so a known-good build can be pinned (see APPIMAGETOOL_SHA256).
+    echo "Downloaded $2 (sha256 $actual)"
+    if [ -n "${3:-}" ] && [ "$actual" != "$3" ]; then
+        echo "error: checksum mismatch for $2: expected $3" >&2
+        exit 1
+    fi
 }
 
 # appimagetool and the AppImage runtime aren't packaged by distributions, so
 # use the official builds. Set APPIMAGETOOL / APPIMAGE_RUNTIME to local copies
-# to skip the downloads (or to pin versions).
+# to skip the downloads. To pin the downloads, set APPIMAGETOOL_URL and
+# APPIMAGE_RUNTIME_URL to specific release files and APPIMAGETOOL_SHA256 and
+# APPIMAGE_RUNTIME_SHA256 to their checksums; the build then fails if a file
+# changes.
 tool=${APPIMAGETOOL:-}
 if [ -z "$tool" ]; then
     tool="$work/appimagetool"
     fetch "$tool" \
-        "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${arch}.AppImage"
+        "${APPIMAGETOOL_URL:-https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${arch}.AppImage}" \
+        "${APPIMAGETOOL_SHA256:-}"
     chmod +x "$tool"
 fi
 runtime=${APPIMAGE_RUNTIME:-}
 if [ -z "$runtime" ]; then
     runtime="$work/runtime-${arch}"
     fetch "$runtime" \
-        "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${arch}"
+        "${APPIMAGE_RUNTIME_URL:-https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${arch}}" \
+        "${APPIMAGE_RUNTIME_SHA256:-}"
 fi
 
 mkdir -p "$out"
