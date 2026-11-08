@@ -32,15 +32,11 @@ impl Backend for MockBackend {
         req.validate()?;
         std::thread::sleep(Duration::from_millis(400));
         if req.password.expose_secret() != "test" {
-            return Err(Error::CommandFailed(
-                "Incorrect password or not a VeraCrypt volume.".into(),
-            ));
+            return Err(Error::WrongPassword);
         }
         let mut mounted = self.mounted.lock().unwrap();
         if mounted.iter().any(|v| v.volume == req.volume) {
-            return Err(Error::CommandFailed(
-                "The volume is already mounted.".into(),
-            ));
+            return Err(Error::AlreadyMounted);
         }
         let slot = (1..)
             .find(|n| !mounted.iter().any(|v| v.slot == *n))

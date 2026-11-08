@@ -5,10 +5,22 @@ pub enum Error {
     #[error("{0} was not found. Is it installed and on your PATH?")]
     NotInstalled(String),
 
+    #[error(
+        "Wrong password, or this isn't a VeraCrypt volume. If you set a PIM or keyfiles \
+         when you created the volume, add them under Advanced options."
+    )]
+    WrongPassword,
+
+    #[error("This volume is already unlocked")]
+    AlreadyMounted,
+
+    #[error("The volume is in use. Close any files or windows that use it, then try again.")]
+    VolumeBusy,
+
     #[error("{0}")]
     InvalidInput(String),
 
-    #[error("Administrator authentication was cancelled or denied")]
+    #[error("Administrator authentication was cancelled")]
     AuthCancelled,
 
     #[error(
