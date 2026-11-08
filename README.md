@@ -27,6 +27,16 @@ Cryptdeck remembers the volumes you add (just their location, never
 passwords), so next time you only need to choose **Unlock**. Unlocked
 volumes stay unlocked until you lock them, even after you close Cryptdeck.
 
+### Automatic locking (Linux)
+
+Under **Settings**, Cryptdeck can lock all volumes when the computer goes to
+sleep (on by default) or when the screen locks (off by default). It asks the
+system to wait a moment before sleeping, locks the volumes, then lets it
+sleep. This works while the window is closed, as long as Cryptdeck is
+running in the tray. Volumes with files still open can't be locked; you'll
+see a message if that happens. It needs systemd-logind, which almost every
+Linux distribution uses.
+
 ### System tray (Linux)
 
 On desktops with a system tray, Cryptdeck adds an icon there. Its menu
@@ -114,6 +124,14 @@ The saved volume list is `volumes.json` in your config folder:
 `~/.config/cryptdeck` on Linux, `~/Library/Application Support/cryptdeck`
 on macOS, and `%APPDATA%\cryptdeck` on Windows.
 
+## Dependency checks
+
+Every push, and a weekly scheduled run, checks the Rust dependencies with
+[cargo-deny](https://embarkstudios.github.io/cargo-deny/) against
+`deny.toml`: known vulnerabilities (RustSec), yanked crates, licenses, and
+crate sources. Run it locally with `cargo deny check`. GitHub Actions are
+pinned to commit hashes, which Dependabot keeps up to date.
+
 ## Layout
 
 ```
@@ -174,6 +192,7 @@ workflow artifacts.
 - [x] udisks2 backend (no VeraCrypt or root needed on Linux; volumes owned by you)
 - [ ] Hidden volume protection
 - [x] System tray (Linux)
+- [x] Lock on sleep and screen lock (Linux)
 - [ ] System tray (macOS, Windows)
 - [ ] Developer ID signing and notarization (macOS), code signing (Windows)
 - [ ] Volume creation wizard

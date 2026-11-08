@@ -1,12 +1,14 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autolock;
 mod store;
 mod tray;
 
 use std::ffi::OsStr;
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use cryptdeck_core::{Backend, Error, MountRequest, MountedVolume, MAX_PIM};
@@ -64,6 +66,17 @@ struct App {
     tray: Option<tray::Handle>,
     /// What the tray currently shows.
     tray_state: tray::State,
+    settings: store::Settings,
+    /// The same settings, shared with the auto-lock watcher threads.
+    autolock: Arc<autolock::Settings>,
+    autolock_status: AutoLockStatus,
+    show_settings: bool,
+}
+
+enum AutoLockStatus {
+    Starting,
+    Ready { screen_lock: bool },
+    Unavailable(String),
 }
 
 enum BackendState {
@@ -197,6 +210,10 @@ enum Message {
     WindowOpened,
     CloseRequested(window::Id),
     Tray(tray::Update),
+    AutoLock(autolock::Event),
+    ToggleSettings,
+    LockOnSleepToggled(bool),
+    LockOnScreenLockToggled(bool),
 }
 
 /// One row in the volume list: a saved volume, a mounted one, or both.
@@ -208,6 +225,7 @@ struct Entry<'a> {
 
 impl App {
     fn boot() -> (Self, Task<Message>) {
+        let settings = store::load_settings();
         let mut app = App {
             backend: cryptdeck_core::default_backend(),
             backend_state: BackendState::Checking,
@@ -225,13 +243,23 @@ impl App {
             window: None,
             tray: None,
             tray_state: tray::State::default(),
+            settings,
+            autolock: Arc::new(autolock::Settings::new(
+                settings.lock_on_sleep,
+                settings.lock_on_screen_lock,
+            )),
+            autolock_status: AutoLockStatus::Starting,
+            show_settings: false,
         };
+        let (autolock_tx, autolock_rx) = iced::futures::channel::mpsc::unbounded();
+        autolock::start(app.backend.clone(), app.autolock.clone(), autolock_tx);
         let (id, open) = window::open(window_settings());
         app.window = Some(id);
         let tasks = Task::batch([
             open.map(|_| Message::WindowOpened),
             app.check(),
             Task::done(Message::Refresh),
+            Task::run(autolock_rx, Message::AutoLock),
         ]);
         (app, tasks)
     }
@@ -566,6 +594,46 @@ impl App {
                 window::close(id)
             }
             Message::Tray(update) => self.handle_tray(update),
+            Message::AutoLock(event) => match event {
+                autolock::Event::Ready { screen_lock } => {
+                    self.autolock_status = AutoLockStatus::Ready { screen_lock };
+                    Task::none()
+                }
+                autolock::Event::Unavailable(reason) => {
+                    self.autolock_status = AutoLockStatus::Unavailable(reason);
+                    Task::none()
+                }
+                autolock::Event::Locked {
+                    reason,
+                    count,
+                    error,
+                } => {
+                    self.unlock = None;
+                    self.notice = Some(match error {
+                        None => Notice::Success(autolock::describe(reason, count)),
+                        Some(e) => Notice::Error(format!(
+                            "Tried to lock your volumes automatically, but: {e}"
+                        )),
+                    });
+                    self.refresh()
+                }
+            },
+            Message::ToggleSettings => {
+                self.show_settings = !self.show_settings;
+                Task::none()
+            }
+            Message::LockOnSleepToggled(on) => {
+                self.settings.lock_on_sleep = on;
+                self.autolock.on_sleep.store(on, Ordering::Relaxed);
+                self.persist_settings();
+                Task::none()
+            }
+            Message::LockOnScreenLockToggled(on) => {
+                self.settings.lock_on_screen_lock = on;
+                self.autolock.on_screen_lock.store(on, Ordering::Relaxed);
+                self.persist_settings();
+                Task::none()
+            }
         }
     }
 
@@ -677,6 +745,12 @@ impl App {
         operation::focus(PASSWORD_ID)
     }
 
+    fn persist_settings(&mut self) {
+        if let Err(e) = store::save_settings(&self.settings) {
+            self.notice = Some(Notice::Error(format!("Couldn't save your settings: {e}")));
+        }
+    }
+
     fn persist(&mut self) {
         if let Err(e) = store::save(&self.saved) {
             self.notice = Some(Notice::Error(format!(
@@ -737,6 +811,9 @@ impl App {
         }
 
         let mut page = Column::new().spacing(16).push(self.header());
+        if self.show_settings {
+            page = page.push(self.settings_view());
+        }
         if let Some(banner) = self.backend_banner() {
             page = page.push(banner);
         }
@@ -769,7 +846,7 @@ impl App {
 
     fn header(&self) -> Element<'_, Message> {
         let status = match &self.backend_state {
-            BackendState::Checking => "Looking for VeraCrypt…".to_string(),
+            BackendState::Checking => "Checking…".to_string(),
             BackendState::Ready(version) => version.clone(),
             BackendState::Missing | BackendState::Broken(_) => String::new(),
         };
@@ -777,9 +854,68 @@ impl App {
             text("Cryptdeck").size(28),
             space::horizontal(),
             text(status).size(12).style(text::secondary),
+            button(
+                text(if self.show_settings {
+                    "Close settings"
+                } else {
+                    "Settings"
+                })
+                .size(13)
+            )
+            .style(button::text)
+            .on_press(Message::ToggleSettings),
         ]
+        .spacing(8)
         .align_y(Alignment::Center)
         .into()
+    }
+
+    fn settings_view(&self) -> Element<'_, Message> {
+        let (available, screen_lock, status) = match &self.autolock_status {
+            AutoLockStatus::Starting => (true, true, None),
+            AutoLockStatus::Ready { screen_lock: true } => (true, true, None),
+            AutoLockStatus::Ready { screen_lock: false } => (
+                true,
+                false,
+                Some(
+                    "Your system doesn't report screen locks, so that option isn't available."
+                        .to_string(),
+                ),
+            ),
+            AutoLockStatus::Unavailable(reason) => (
+                false,
+                false,
+                Some(format!(
+                    "Automatic locking isn't available here ({reason})."
+                )),
+            ),
+        };
+        let mut col = column![
+            text("Automatic locking").size(16),
+            checkbox(self.settings.lock_on_sleep)
+                .label("Lock all volumes when the computer goes to sleep")
+                .on_toggle_maybe(available.then_some(Message::LockOnSleepToggled)),
+            checkbox(self.settings.lock_on_screen_lock)
+                .label("Lock all volumes when the screen locks")
+                .on_toggle_maybe(
+                    (available && screen_lock).then_some(Message::LockOnScreenLockToggled)
+                ),
+            text(
+                "Volumes with files still open can't be locked. If that happens, \
+                 Cryptdeck tells you."
+            )
+            .size(12)
+            .style(text::secondary),
+        ]
+        .spacing(10);
+        if let Some(status) = status {
+            col = col.push(text(status).size(12).style(text::secondary));
+        }
+        container(col)
+            .padding(16)
+            .width(Length::Fill)
+            .style(card_style)
+            .into()
     }
 
     fn backend_banner(&self) -> Option<Element<'_, Message>> {

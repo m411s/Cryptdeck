@@ -1,8 +1,9 @@
-//! The list of volumes the user has added, remembered between runs.
+//! What Cryptdeck remembers between runs: the volumes the user has added
+//! (`volumes.json`) and their settings (`settings.json`).
 //!
-//! Only paths are stored, never passwords, PIMs or keyfiles. The file lives
-//! in the platform's config folder (e.g. `~/.config/cryptdeck/volumes.json`
-//! on Linux), or in `$CRYPTDECK_CONFIG_DIR` if that is set.
+//! Only paths are stored, never passwords, PIMs or keyfiles. The files live
+//! in the platform's config folder (e.g. `~/.config/cryptdeck` on Linux), or
+//! in `$CRYPTDECK_CONFIG_DIR` if that is set.
 
 use std::fs;
 use std::io;
@@ -11,7 +12,42 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 const FILE_NAME: &str = "volumes.json";
+const SETTINGS_FILE: &str = "settings.json";
 const VERSION: u32 = 1;
+
+/// User settings. Missing fields (e.g. from an older version) take their
+/// defaults.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(default)]
+pub struct Settings {
+    pub lock_on_sleep: bool,
+    pub lock_on_screen_lock: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            lock_on_sleep: true,
+            lock_on_screen_lock: false,
+        }
+    }
+}
+
+pub fn load_settings() -> Settings {
+    config_dir()
+        .and_then(|dir| fs::read(dir.join(SETTINGS_FILE)).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_settings(settings: &Settings) -> io::Result<()> {
+    let dir =
+        config_dir().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no config folder"))?;
+    write_atomic(
+        &dir.join(SETTINGS_FILE),
+        &serde_json::to_vec_pretty(settings)?,
+    )
+}
 
 #[derive(Serialize, Deserialize)]
 struct File {
@@ -44,18 +80,22 @@ fn load_from(path: &Path) -> io::Result<Vec<PathBuf>> {
     Ok(file.volumes)
 }
 
-/// Write via a temporary file and rename, so a crash mid-write can't leave
-/// a truncated file behind.
 fn save_to(path: &Path, volumes: &[PathBuf]) -> io::Result<()> {
-    if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir)?;
-    }
     let json = serde_json::to_vec_pretty(&File {
         version: VERSION,
         volumes: volumes.to_vec(),
     })?;
+    write_atomic(path, &json)
+}
+
+/// Write via a temporary file and rename, so a crash mid-write can't leave
+/// a truncated file behind.
+fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, json)?;
+    fs::write(&tmp, bytes)?;
     fs::rename(&tmp, path)
 }
 
@@ -73,6 +113,20 @@ mod tests {
         assert_eq!(load_from(&path).unwrap(), volumes);
 
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn settings_default_and_fill_missing_fields() {
+        assert!(Settings::default().lock_on_sleep);
+        assert!(!Settings::default().lock_on_screen_lock);
+        let partial: Settings = serde_json::from_str(r#"{"lock_on_screen_lock": true}"#).unwrap();
+        assert_eq!(
+            partial,
+            Settings {
+                lock_on_sleep: true,
+                lock_on_screen_lock: true
+            }
+        );
     }
 
     #[test]
