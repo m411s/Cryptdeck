@@ -12,6 +12,7 @@ mod types;
 #[cfg(target_os = "linux")]
 pub mod udisks;
 pub mod veracrypt;
+pub mod windows;
 
 pub use backend::Backend;
 pub use error::{Error, Result};
@@ -23,11 +24,13 @@ use std::sync::Arc;
 ///
 /// On Linux, the system's udisks2 service is preferred when it's new enough:
 /// it needs no VeraCrypt install and mounts volumes as the user. Otherwise
-/// the VeraCrypt CLI is used. `CRYPTDECK_BACKEND` forces a choice: `udisks`,
+/// the VeraCrypt CLI is used. On Windows, VeraCrypt.exe and its driver are
+/// used. `CRYPTDECK_BACKEND` forces a choice: `udisks`,
 /// `veracrypt`, or `mock` (an in-memory backend for UI development).
 pub fn default_backend() -> Arc<dyn Backend> {
     match std::env::var("CRYPTDECK_BACKEND").as_deref() {
         Ok("mock") => return Arc::new(mock::MockBackend::default()),
+        #[cfg(not(windows))]
         Ok("veracrypt") => return Arc::new(veracrypt::VeraCryptCli::new()),
         #[cfg(target_os = "linux")]
         Ok("udisks") => match udisks::Udisks::connect() {
@@ -42,5 +45,8 @@ pub fn default_backend() -> Arc<dyn Backend> {
             }
         }
     }
+    #[cfg(windows)]
+    return Arc::new(windows::VeraCryptWin::new());
+    #[cfg(not(windows))]
     Arc::new(veracrypt::VeraCryptCli::new())
 }

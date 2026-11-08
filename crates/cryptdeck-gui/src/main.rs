@@ -1222,8 +1222,12 @@ impl App {
         let mount_point: Element<_> = if !self.backend.supports_mount_point() {
             row![
                 label("Unlock to folder"),
-                hint("Your system chooses the folder (under /run/media), like for a USB stick.")
-                    .width(Length::Fill),
+                hint(if cfg!(windows) {
+                    "Cryptdeck picks a free drive letter, like for a USB stick."
+                } else {
+                    "Your system chooses the folder (under /run/media), like for a USB stick."
+                })
+                .width(Length::Fill),
             ]
             .spacing(8)
             .into()

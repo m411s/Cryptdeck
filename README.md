@@ -6,7 +6,8 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
 ![Cryptdeck with one volume unlocked](docs/screenshot.png)
 
 > **Status: early prototype.** Linux works through the VeraCrypt CLI.
-> macOS and Windows builds run, but can't unlock volumes yet. Don't trust it
+> Windows support (with VeraCrypt installed) is new and still being tested.
+> macOS builds run, but can't unlock volumes yet. Don't trust it
 > with data you can't afford to lose yet.
 
 ## Using Cryptdeck
@@ -59,7 +60,7 @@ tool as a separate process:
 | Linux | udisks2 (the service behind GNOME Disks and KDE's file manager), which uses `cryptsetup`; no VeraCrypt install needed | Default when udisks 2.9+ is running |
 | Linux | `veracrypt --text` CLI, password passed on stdin | Fallback |
 | macOS | `veracrypt --text` CLI | Planned (should need little work) |
-| Windows | VeraCrypt driver via `DeviceIoControl` | Planned |
+| Windows | `VeraCrypt.exe` to unlock and lock; the VeraCrypt driver to list unlocked volumes | New: needs VeraCrypt installed |
 
 Each backend implements the `Backend` trait in `cryptdeck-core`, and the GUI
 only talks to that trait.
@@ -71,6 +72,13 @@ usually isn't. udisks always chooses the mount folder, so "Unlock to
 folder" isn't offered with it.
 
 ### Security notes
+
+- **Windows:** VeraCrypt.exe only accepts the password on its command line,
+  so while it runs (a second or two), other programs running as you, and
+  administrators, could read it, and monitoring tools that log process
+  command lines may record it. On a shared or managed (work) PC, keep this
+  in mind. Passing the password to the VeraCrypt driver directly would avoid
+  it and is on the roadmap.
 
 - With udisks2, the password goes to the udisks service over the local
   system D-Bus, and Cryptdeck never runs anything as root. Keyfiles are
@@ -197,7 +205,8 @@ workflow artifacts.
 - [ ] Developer ID signing and notarization (macOS), code signing (Windows)
 - [ ] Volume creation wizard
 - [ ] macOS
-- [ ] Windows
+- [x] Windows: unlock, lock and list through VeraCrypt
+- [ ] Windows: pass the password to the VeraCrypt driver directly, not on VeraCrypt.exe's command line
 
 ## License
 
