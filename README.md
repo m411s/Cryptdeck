@@ -25,6 +25,15 @@ Cryptdeck remembers the volumes you add (just their location, never
 passwords), so next time you only need to choose **Unlock**. Unlocked
 volumes stay unlocked until you lock them, even after you close Cryptdeck.
 
+### System tray (Linux)
+
+On desktops with a system tray, Cryptdeck adds an icon there. Its menu
+unlocks, opens and locks your volumes, and closing the window keeps
+Cryptdeck running in the tray; choose **Quit Cryptdeck** from the menu to
+exit. KDE, Xfce, Cinnamon, MATE and Ubuntu's GNOME show it out of the box.
+On other GNOME setups, install the "AppIndicator and KStatusNotifierItem
+Support" extension. Without a tray, closing the window quits as usual.
+
 Cryptdeck is an independent project. It is not affiliated with or endorsed
 by IDRIX or the VeraCrypt project.
 
@@ -152,7 +161,8 @@ workflow artifacts.
 - [ ] polkit helper with a restricted policy instead of a raw `pkexec veracrypt`
 - [ ] Mount ownership for non-root users (FAT, exFAT and NTFS `uid`/`gid` options)
 - [ ] Hidden volume protection
-- [ ] System tray
+- [x] System tray (Linux)
+- [ ] System tray (macOS, Windows)
 - [ ] Developer ID signing and notarization (macOS), code signing (Windows)
 - [ ] `cryptsetup` backend
 - [ ] Volume creation wizard

@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod store;
+mod tray;
 
 use std::ffi::OsStr;
 use std::future::Future;
@@ -25,17 +26,24 @@ const PASSWORD_ID: &str = "password";
 const ICON_RGBA: &[u8] = include_bytes!("../../../assets/icon-64.rgba");
 
 fn main() -> iced::Result {
-    iced::application(App::boot, App::update, App::view)
-        .title("Cryptdeck")
+    // A daemon keeps running with no window open, so closing the window can
+    // leave Cryptdeck in the system tray. Without a tray, closing quits.
+    iced::daemon(App::boot, App::update, App::view)
+        .title(App::title)
         .theme(App::theme)
         .subscription(App::subscription)
-        .window(window::Settings {
-            size: Size::new(760.0, 620.0),
-            min_size: Some(Size::new(560.0, 420.0)),
-            icon: window::icon::from_rgba(ICON_RGBA.to_vec(), 64, 64).ok(),
-            ..window::Settings::default()
-        })
         .run()
+}
+
+fn window_settings() -> window::Settings {
+    window::Settings {
+        size: Size::new(760.0, 620.0),
+        min_size: Some(Size::new(560.0, 420.0)),
+        icon: window::icon::from_rgba(ICON_RGBA.to_vec(), 64, 64).ok(),
+        // We decide what closing means: hide to the tray, or quit.
+        exit_on_close_request: false,
+        ..window::Settings::default()
+    }
 }
 
 struct App {
@@ -50,6 +58,12 @@ struct App {
     notice: Option<Notice>,
     drop_hover: bool,
     theme_override: Option<Theme>,
+    /// The main window, while it's open.
+    window: Option<window::Id>,
+    /// The system tray, if the desktop has one.
+    tray: Option<tray::Handle>,
+    /// What the tray currently shows.
+    tray_state: tray::State,
 }
 
 enum BackendState {
@@ -180,6 +194,9 @@ enum Message {
     Open(PathBuf),
     GetVeraCrypt,
     DismissNotice,
+    WindowOpened,
+    CloseRequested(window::Id),
+    Tray(tray::Update),
 }
 
 /// One row in the volume list: a saved volume, a mounted one, or both.
@@ -191,7 +208,7 @@ struct Entry<'a> {
 
 impl App {
     fn boot() -> (Self, Task<Message>) {
-        let app = App {
+        let mut app = App {
             backend: cryptdeck_core::default_backend(),
             backend_state: BackendState::Checking,
             saved: store::load(),
@@ -205,30 +222,36 @@ impl App {
                 Ok("light") => Some(Theme::Light),
                 _ => None,
             },
+            window: None,
+            tray: None,
+            tray_state: tray::State::default(),
         };
-        let tasks = Task::batch([app.check(), Task::done(Message::Refresh)]);
+        let (id, open) = window::open(window_settings());
+        app.window = Some(id);
+        let tasks = Task::batch([
+            open.map(|_| Message::WindowOpened),
+            app.check(),
+            Task::done(Message::Refresh),
+        ]);
         (app, tasks)
+    }
+
+    fn title(&self, _window: window::Id) -> String {
+        "Cryptdeck".into()
     }
 
     /// Follow the system's light or dark mode, unless `CRYPTDECK_THEME` is
     /// set to `light` or `dark`.
-    fn theme(&self) -> Option<Theme> {
+    fn theme(&self, _window: window::Id) -> Option<Theme> {
         self.theme_override.clone()
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        event::listen_with(|event, _status, _window| match event {
-            // Pick up volumes mounted or dismounted elsewhere.
-            Event::Window(window::Event::Focused) => Some(Message::WindowFocused),
-            Event::Window(window::Event::FileHovered(_)) => Some(Message::FileHovered),
-            Event::Window(window::Event::FilesHoveredLeft) => Some(Message::FilesHoveredLeft),
-            Event::Window(window::Event::FileDropped(path)) => Some(Message::FileDropped(path)),
-            Event::Keyboard(keyboard::Event::KeyPressed {
-                key: Key::Named(Named::Escape),
-                ..
-            }) => Some(Message::CancelUnlock),
-            _ => None,
-        })
+        Subscription::batch([
+            window_events(),
+            window::close_requests().map(Message::CloseRequested),
+            tray::subscription().map(Message::Tray),
+        ])
     }
 
     fn check(&self) -> Task<Message> {
@@ -262,6 +285,12 @@ impl App {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        let task = self.handle(message);
+        self.sync_tray();
+        task
+    }
+
+    fn handle(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Checked(result) => {
                 self.backend_state = match result {
@@ -520,6 +549,99 @@ impl App {
                 self.notice = None;
                 Task::none()
             }
+            Message::WindowOpened => Task::none(),
+            Message::CloseRequested(id) => {
+                if self.tray.is_none() {
+                    return iced::exit();
+                }
+                // Keep running in the tray. Drop any half-typed password.
+                if !matches!(self.busy, Some(Busy::Unlocking(_))) {
+                    self.unlock = None;
+                }
+                self.drop_hover = false;
+                self.window = None;
+                window::close(id)
+            }
+            Message::Tray(update) => self.handle_tray(update),
+        }
+    }
+
+    fn handle_tray(&mut self, update: tray::Update) -> Task<Message> {
+        match update {
+            tray::Update::Ready(handle) => {
+                handle.set_state(self.tray_snapshot());
+                self.tray_state = self.tray_snapshot();
+                self.tray = Some(handle);
+                Task::none()
+            }
+            tray::Update::Unavailable(reason) => {
+                eprintln!("cryptdeck: no system tray ({reason}); closing the window quits");
+                Task::none()
+            }
+            tray::Update::Event(event) => match event {
+                tray::Event::Show => self.show_window(),
+                tray::Event::Unlock(path) => {
+                    let show = self.show_window();
+                    let focus = self.open_unlock_form(path);
+                    show.chain(focus)
+                }
+                tray::Event::Open(path) => match self.mounted_volume(&path) {
+                    Some(m) => match m.mount_point.clone() {
+                        Some(mp) => self.handle(Message::Open(mp)),
+                        None => Task::none(),
+                    },
+                    None => Task::none(),
+                },
+                tray::Event::Lock(path) => match self.mounted_volume(&path).cloned() {
+                    Some(m) => self.handle(Message::Lock(m)),
+                    None => Task::none(),
+                },
+                tray::Event::LockAll => self.handle(Message::LockAll),
+                tray::Event::Quit => iced::exit(),
+            },
+        }
+    }
+
+    /// Bring the window to the front, opening it again if it was closed.
+    fn show_window(&mut self) -> Task<Message> {
+        match self.window {
+            Some(id) => Task::batch([window::minimize(id, false), window::gain_focus(id)]),
+            None => {
+                let (id, open) = window::open(window_settings());
+                self.window = Some(id);
+                open.map(|_| Message::WindowOpened)
+            }
+        }
+    }
+
+    fn mounted_volume(&self, path: &Path) -> Option<&MountedVolume> {
+        self.mounted.iter().find(|m| m.volume == path)
+    }
+
+    fn tray_snapshot(&self) -> tray::State {
+        tray::State {
+            volumes: self
+                .entries()
+                .iter()
+                .map(|e| tray::Volume {
+                    name: display_name(e.path),
+                    path: e.path.to_path_buf(),
+                    unlocked: e.mounted.is_some(),
+                    can_open: e.mounted.is_some_and(|m| m.mount_point.is_some()),
+                })
+                .collect(),
+            busy: self.busy.is_some(),
+        }
+    }
+
+    /// Push the current volumes to the tray, but only when something it
+    /// shows has changed (not on every keystroke).
+    fn sync_tray(&mut self) {
+        let Some(handle) = &self.tray else { return };
+        let state = self.tray_snapshot();
+        if state != self.tray_state {
+            handle.set_state(state.clone());
+            self.tray_state = state;
         }
     }
 
@@ -587,7 +709,7 @@ impl App {
 
     // ----- View -----
 
-    fn view(&self) -> Element<'_, Message> {
+    fn view(&self, _window: window::Id) -> Element<'_, Message> {
         if self.drop_hover {
             return container(
                 column![
@@ -766,10 +888,13 @@ impl App {
             ]
             .spacing(12)
             .align_y(Alignment::Center),
-            text(
+            text(if self.tray.is_some() {
+                "Unlocked volumes stay unlocked until you lock them. Closing this \
+                 window keeps Cryptdeck in the system tray."
+            } else {
                 "Unlocked volumes stay unlocked until you lock them, \
                  even after you close Cryptdeck."
-            )
+            })
             .size(12)
             .style(text::secondary),
         ]
@@ -977,6 +1102,22 @@ impl App {
             .padding(iced::Padding::new(0.0).top(6))
             .into()
     }
+}
+
+/// Window and keyboard events the app reacts to.
+fn window_events() -> Subscription<Message> {
+    event::listen_with(|event, _status, _window| match event {
+        // Pick up volumes mounted or dismounted elsewhere.
+        Event::Window(window::Event::Focused) => Some(Message::WindowFocused),
+        Event::Window(window::Event::FileHovered(_)) => Some(Message::FileHovered),
+        Event::Window(window::Event::FilesHoveredLeft) => Some(Message::FilesHoveredLeft),
+        Event::Window(window::Event::FileDropped(path)) => Some(Message::FileDropped(path)),
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            key: Key::Named(Named::Escape),
+            ..
+        }) => Some(Message::CancelUnlock),
+        _ => None,
+    })
 }
 
 fn status_pill<'a>(unlocked: bool) -> Element<'a, Message> {
