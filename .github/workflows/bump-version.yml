@@ -1,0 +1,76 @@
+name: Bump version and release
+
+# One click from the Actions tab: bump the version in Cargo.toml and
+# Cargo.lock, commit it to main, then build and publish the release.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to increase
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this on main (it was started on ${GITHUB_REF_NAME})"
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          current=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cryptdeck") | .version')
+          IFS=. read -r major minor patch <<< "${current%%-*}"
+          case "$BUMP" in
+            major) next="$((major + 1)).0.0" ;;
+            minor) next="$major.$((minor + 1)).0" ;;
+            patch) next="$major.$minor.$((patch + 1))" ;;
+            *) echo "::error::Unknown bump '$BUMP'"; exit 1 ;;
+          esac
+          if git ls-remote --exit-code --tags origin "refs/tags/v$next" >/dev/null; then
+            echo "::error::v$next has already been released"
+            exit 1
+          fi
+          # The workspace version is the first `version =` line in Cargo.toml.
+          sed -i "0,/^version = \".*\"/s//version = \"$next\"/" Cargo.toml
+          cargo update --workspace
+          echo "Bumped $current -> $next"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+      - id: commit
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v$VERSION"
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: bump
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.bump.outputs.version }}
+      ref: ${{ needs.bump.outputs.sha }}

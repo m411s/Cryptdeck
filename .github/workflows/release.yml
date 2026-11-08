@@ -1,8 +1,10 @@
 name: Release
 
-# Builds every platform and publishes a GitHub Release when either:
-# - you run this workflow from the Actions tab on main and enter a version
-#   (it creates the tag v<version> itself), or
+# Builds every platform and publishes a GitHub Release when:
+# - another workflow calls it with a version (see bump-version.yml and
+#   auto-release.yml),
+# - you run it from the Actions tab on main and enter a version (it creates
+#   the tag v<version> itself), or
 # - you push a tag like v0.2.0.
 # Manual runs without a version, and pushes that touch packaging, do a dry
 # run: the same builds, uploaded as workflow artifacts, nothing published.
@@ -24,6 +26,15 @@ on:
           for a test build that publishes nothing.
         required: false
         default: ""
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      ref:
+        description: Commit to build and tag (defaults to the triggering commit)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -40,6 +51,8 @@ jobs:
       publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - id: v
         env:
           # Passed through the environment, never pasted into the script.
@@ -70,7 +83,7 @@ jobs:
               echo "publish=true"
             } >> "$GITHUB_OUTPUT"
           else
-            echo "version=$cargo_version-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "version=$cargo_version-dev.$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -83,6 +96,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p cryptdeck
@@ -107,6 +122,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
@@ -131,6 +148,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p cryptdeck
@@ -154,6 +173,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -164,7 +185,7 @@ jobs:
         with:
           # Creates the tag on this commit when it doesn't exist yet.
           tag_name: ${{ needs.version.outputs.tag }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ inputs.ref || github.sha }}
           name: Cryptdeck ${{ needs.version.outputs.version }}
           files: dist/*
           body_path: packaging/release-notes.md

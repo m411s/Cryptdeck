@@ -1,0 +1,43 @@
+name: Auto release
+
+# When a push to main changes the version in Cargo.toml to one that hasn't
+# been released yet, build and publish it. Other pushes stop after a few
+# seconds without building anything.
+on:
+  push:
+    branches: [main]
+    paths: ["Cargo.toml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cryptdeck") | .version')
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already released; nothing to do."
+          else
+            echo "New version v$version: releasing."
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: check
+    if: needs.check.outputs.version != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.check.outputs.version }}

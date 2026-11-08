@@ -105,24 +105,29 @@ packaging/          AppImage, macOS .app/.dmg, and release notes
 
 ## Releasing
 
-1. Update `version` in the root `Cargo.toml`, run `cargo build` to update
-   `Cargo.lock`, and commit to `main`.
-2. Start the release, either way:
-   - **From GitHub:** open **Actions → Release → Run workflow**, keep the
-     branch on `main`, enter the version (e.g. `0.2.0`) and choose
-     **Run workflow**. The workflow creates the tag `v0.2.0` itself.
-   - **From the command line:** tag the commit and push the tag:
+**One click (recommended):** open **Actions → Bump version and release →
+Run workflow**, pick `patch` (0.1.0 → 0.1.1), `minor` (0.1.0 → 0.2.0) or
+`major` (0.1.0 → 1.0.0), and choose **Run workflow**. It updates the version
+in `Cargo.toml` and `Cargo.lock`, commits that to `main`, then builds and
+publishes the release.
 
-     ```bash
-     git tag -a v0.2.0 -m "Cryptdeck 0.2.0"
-     ```
+**Automatic:** when a push to `main` changes the version in `Cargo.toml` to
+one that hasn't been released, the release is built and published by
+itself. Run `cargo build` after editing the version, so `Cargo.lock` is
+updated too, and commit both.
 
-     ```bash
-     git push origin v0.2.0
-     ```
+**By hand:** run the **Release** workflow from the Actions tab and enter the
+current version, or push a matching tag:
 
-The `Release` workflow then builds every platform and publishes a GitHub
-Release with these files and a `SHA256SUMS.txt`:
+```bash
+git tag -a v0.2.0 -m "Cryptdeck 0.2.0"
+```
+
+```bash
+git push origin v0.2.0
+```
+
+Each release has these files and a `SHA256SUMS.txt`:
 
 | File | Notes |
 | --- | --- |
