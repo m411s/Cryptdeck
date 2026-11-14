@@ -24,6 +24,12 @@ dialog.choose_folder:
   en: "Choose where to unlock the volume"
   de: "Ordner zum Entsperren auswählen"
 
+notice.setup_done:
+  en: "VeraCrypt support is on. You can unlock your volumes now."
+  de: "VeraCrypt-Unterstützung ist eingeschaltet. Sie können Ihre Volumes jetzt entsperren."
+notice.setup_failed:
+  en: "Couldn't turn on VeraCrypt support: %{error}"
+  de: "VeraCrypt-Unterstützung konnte nicht eingeschaltet werden: %{error}"
 notice.unlocked:
   en: "“%{name}” is unlocked"
   de: "„%{name}“ ist entsperrt"
@@ -103,6 +109,21 @@ banner.missing.body:
 banner.broken.title:
   en: "VeraCrypt isn't working"
   de: "VeraCrypt funktioniert nicht"
+banner.setup.title:
+  en: "One-time setup needed"
+  de: "Einmalige Einrichtung nötig"
+banner.setup.body:
+  en: "Your system's disk service can open VeraCrypt volumes, but this is switched off. Turning it on takes one administrator password and only needs doing once."
+  de: "Der Datenträgerdienst Ihres Systems kann VeraCrypt-Volumes öffnen, aber das ist ausgeschaltet. Zum Einschalten ist einmalig ein Administratorpasswort nötig."
+banner.setup.turn_on:
+  en: "Turn on VeraCrypt support"
+  de: "VeraCrypt-Unterstützung einschalten"
+banner.setup.running:
+  en: "Turning on…"
+  de: "Wird eingeschaltet…"
+banner.setup.manual:
+  en: "Or in a terminal: sudo touch /etc/udisks2/tcrypt.conf && sudo systemctl restart udisks2"
+  de: "Oder in einem Terminal: sudo touch /etc/udisks2/tcrypt.conf && sudo systemctl restart udisks2"
 banner.get:
   en: "Get VeraCrypt"
   de: "VeraCrypt herunterladen"

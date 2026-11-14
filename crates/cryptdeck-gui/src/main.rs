@@ -117,6 +117,10 @@ enum BackendState {
     Checking,
     Ready(String),
     Missing,
+    /// udisks needs a one-time change to recognise VeraCrypt volumes.
+    NeedsSetup,
+    /// That change is being made (the admin password dialog may be open).
+    SettingUp,
     Broken(String),
 }
 
@@ -204,6 +208,7 @@ impl std::fmt::Debug for Password {
 #[derive(Debug, Clone)]
 enum CheckError {
     Missing,
+    SetupNeeded,
     Other(String),
 }
 
@@ -237,13 +242,16 @@ enum Message {
     BrowseMountPoint,
     MountPointPicked(Option<PathBuf>),
     Unlock,
-    Unlocked(PathBuf, Result<(), String>),
+    /// The bool is true when unlocking failed because setup is needed.
+    Unlocked(PathBuf, Result<(), String>, bool),
 
     Lock(MountedVolume),
     LockAll,
     Locked(Result<(), String>),
     Open(PathBuf),
     GetVeraCrypt,
+    RunSetup,
+    SetupDone(Result<(), String>),
     DismissNotice,
     WindowOpened,
     CloseRequested(window::Id),
@@ -326,6 +334,7 @@ impl App {
             run_blocking(move || {
                 b.check().map_err(|e| match e {
                     Error::NotInstalled(_) => CheckError::Missing,
+                    Error::SetupNeeded => CheckError::SetupNeeded,
                     e => CheckError::Other(e.to_string()),
                 })
             }),
@@ -362,6 +371,7 @@ impl App {
                 self.backend_state = match result {
                     Ok(version) => BackendState::Ready(version),
                     Err(CheckError::Missing) => BackendState::Missing,
+                    Err(CheckError::SetupNeeded) => BackendState::NeedsSetup,
                     Err(CheckError::Other(e)) => BackendState::Broken(e),
                 };
                 Task::none()
@@ -535,12 +545,18 @@ impl App {
                 self.busy = Some(Busy::Unlocking(path.clone()));
                 self.notice = None;
                 let b = self.backend.clone();
-                Task::perform(background(move || b.mount(&request)), move |r| {
-                    Message::Unlocked(path.clone(), r)
+                Task::perform(run_blocking(move || b.mount(&request)), move |r| {
+                    let setup_needed = matches!(r, Ok(Err(Error::SetupNeeded)));
+                    let r = r.and_then(|r| r.map_err(|e| e.to_string()));
+                    Message::Unlocked(path.clone(), r, setup_needed)
                 })
             }
-            Message::Unlocked(path, result) => {
+            Message::Unlocked(path, result, setup_needed) => {
                 self.busy = None;
+                if setup_needed {
+                    // Show the banner with the button the message mentions.
+                    self.backend_state = BackendState::NeedsSetup;
+                }
                 let refresh = self.refresh();
                 match result {
                     Ok(()) => {
@@ -621,6 +637,33 @@ impl App {
                     ));
                 }
                 Task::none()
+            }
+            Message::RunSetup => {
+                if matches!(self.backend_state, BackendState::SettingUp) {
+                    return Task::none();
+                }
+                self.backend_state = BackendState::SettingUp;
+                self.notice = None;
+                let b = self.backend.clone();
+                Task::perform(background(move || b.setup()), Message::SetupDone)
+            }
+            Message::SetupDone(result) => {
+                self.backend_state = BackendState::NeedsSetup;
+                match result {
+                    Ok(()) => {
+                        // Clear a stale "set up first" error in the form.
+                        if let Some(form) = &mut self.unlock {
+                            form.error = None;
+                        }
+                        self.notice = Some(Notice::Success(t!("notice.setup_done").into()));
+                        Task::batch([self.check(), self.refresh()])
+                    }
+                    Err(e) => {
+                        self.notice =
+                            Some(Notice::Error(t!("notice.setup_failed", error = e).into()));
+                        Task::none()
+                    }
+                }
             }
             Message::DismissNotice => {
                 self.notice = None;
@@ -893,7 +936,10 @@ impl App {
         let status = match &self.backend_state {
             BackendState::Checking => t!("header.checking").into(),
             BackendState::Ready(version) => version.clone(),
-            BackendState::Missing | BackendState::Broken(_) => String::new(),
+            BackendState::Missing
+            | BackendState::NeedsSetup
+            | BackendState::SettingUp
+            | BackendState::Broken(_) => String::new(),
         };
         row![
             text("Cryptdeck").size(28),
@@ -952,6 +998,9 @@ impl App {
     }
 
     fn backend_banner(&self) -> Option<Element<'_, Message>> {
+        if let BackendState::NeedsSetup | BackendState::SettingUp = self.backend_state {
+            return Some(self.setup_banner());
+        }
         let (title, body) = match &self.backend_state {
             BackendState::Missing => (
                 t!("banner.missing.title"),
@@ -980,6 +1029,36 @@ impl App {
             .style(|theme: &Theme| tinted(theme.extended_palette().warning.weak))
             .into(),
         )
+    }
+
+    fn setup_banner(&self) -> Element<'_, Message> {
+        let running = matches!(self.backend_state, BackendState::SettingUp);
+        let turn_on = if running {
+            t!("banner.setup.running")
+        } else {
+            t!("banner.setup.turn_on")
+        };
+        container(
+            column![
+                text(t!("banner.setup.title")).size(16),
+                text(t!("banner.setup.body")).size(14),
+                row![
+                    button(text(turn_on)).on_press_maybe((!running).then_some(Message::RunSetup)),
+                    button(text(t!("banner.check_again")))
+                        .style(button::secondary)
+                        .on_press_maybe((!running).then_some(Message::Recheck)),
+                ]
+                .spacing(8),
+                text(t!("banner.setup.manual"))
+                    .size(12)
+                    .style(text::secondary),
+            ]
+            .spacing(8),
+        )
+        .padding(16)
+        .width(Length::Fill)
+        .style(|theme: &Theme| tinted(theme.extended_palette().warning.weak))
+        .into()
     }
 
     fn notice_view(&self) -> Option<Element<'_, Message>> {

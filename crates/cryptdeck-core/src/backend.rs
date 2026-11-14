@@ -20,6 +20,12 @@ pub trait Backend: Send + Sync {
         true
     }
 
+    /// Make the one-time system change that [`crate::Error::SetupNeeded`]
+    /// asks for. It may show the desktop's admin password dialog.
+    fn setup(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Mount a volume.
     fn mount(&self, request: &MountRequest) -> Result<()>;
 

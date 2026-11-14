@@ -9,6 +9,9 @@ error.not_installed:
 error.wrong_password:
   en: "Wrong password, or this isn't a VeraCrypt volume. If you set a PIM or keyfiles when you created the volume, or it's a hidden volume, set that under Advanced options."
   de: "Falsches Passwort, oder dies ist kein VeraCrypt-Volume. Falls Sie beim Erstellen eine PIM oder Schlüsseldateien festgelegt haben oder es ein verstecktes Volume ist, stellen Sie das unter „Erweiterte Optionen“ ein."
+error.setup_needed:
+  en: "Your system's disk service isn't set up to recognise VeraCrypt volumes yet. Choose “Turn on VeraCrypt support”, or in a terminal run: sudo touch /etc/udisks2/tcrypt.conf && sudo systemctl restart udisks2"
+  de: "Der Datenträgerdienst Ihres Systems erkennt VeraCrypt-Volumes noch nicht. Wählen Sie „VeraCrypt-Unterstützung einschalten“ oder führen Sie in einem Terminal aus: sudo touch /etc/udisks2/tcrypt.conf && sudo systemctl restart udisks2"
 error.already_mounted:
   en: "This volume is already unlocked"
   de: "Dieses Volume ist bereits entsperrt"
@@ -74,6 +77,12 @@ udisks.no_backing:
 udisks.not_ready:
   en: "The system didn't finish preparing the volume (%{detail})"
   de: "Das System hat das Volume nicht fertig vorbereitet (%{detail})"
+udisks.not_encrypted:
+  en: "This isn't an encrypted volume. It holds an ordinary filesystem or another kind of data."
+  de: "Dies ist kein verschlüsseltes Volume. Es enthält ein gewöhnliches Dateisystem oder andere Daten."
+udisks.setup_flatpak:
+  en: "Cryptdeck can't change this from inside the Flatpak. In a terminal, run: sudo touch /etc/udisks2/tcrypt.conf && sudo systemctl restart udisks2"
+  de: "Aus dem Flatpak heraus kann Cryptdeck das nicht ändern. Führen Sie in einem Terminal aus: sudo touch /etc/udisks2/tcrypt.conf && sudo systemctl restart udisks2"
 udisks.unknown_device:
   en: "The system doesn't know %{path}"
   de: "Das System kennt %{path} nicht"

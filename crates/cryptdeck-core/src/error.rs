@@ -14,6 +14,9 @@ pub enum Error {
     InvalidInput(String),
     AuthCancelled,
     UntrustedBinary(std::path::PathBuf),
+    /// The system needs a one-time change before volumes can be opened;
+    /// [`crate::Backend::setup`] makes it.
+    SetupNeeded,
     /// A message from a tool or service, or an already-translated one.
     CommandFailed(String),
     Io(std::io::Error),
@@ -30,6 +33,7 @@ impl std::fmt::Display for Error {
             Error::UntrustedBinary(path) => {
                 f.write_str(&t!("error.untrusted_binary", path = path.display()))
             }
+            Error::SetupNeeded => f.write_str(&t!("error.setup_needed")),
             Error::InvalidInput(msg) | Error::CommandFailed(msg) => f.write_str(msg),
             Error::Io(e) => e.fmt(f),
         }

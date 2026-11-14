@@ -75,12 +75,7 @@ impl VeraCryptCli {
             let binary = binary.canonicalize()?;
             ensure_root_owned(&binary)?;
             if self.elevation == Elevation::Pkexec {
-                let pkexec = TRUSTED_PKEXEC
-                    .iter()
-                    .map(Path::new)
-                    .find(|p| is_executable(p))
-                    .ok_or_else(|| Error::NotInstalled("pkexec (polkit)".into()))?;
-                let mut cmd = Command::new(pkexec);
+                let mut cmd = Command::new(trusted_pkexec()?);
                 // pkexec requires an absolute program path.
                 cmd.arg(binary);
                 cmd
@@ -265,6 +260,15 @@ fn parse_list_line(line: &str) -> Option<MountedVolume> {
 /// Where to look for pkexec. Never taken from PATH, since it decides what
 /// runs as root.
 const TRUSTED_PKEXEC: &[&str] = &["/usr/bin/pkexec", "/bin/pkexec"];
+
+/// The system's pkexec, from a fixed location.
+pub(crate) fn trusted_pkexec() -> Result<&'static Path> {
+    TRUSTED_PKEXEC
+        .iter()
+        .map(Path::new)
+        .find(|p| is_executable(p))
+        .ok_or_else(|| Error::NotInstalled("pkexec (polkit)".into()))
+}
 
 /// Longest error message passed on to the user, in characters.
 const MAX_ERROR_CHARS: usize = 600;

@@ -12,9 +12,13 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
 
 ## Using Cryptdeck
 
-1. On Linux, nothing else is needed on most desktops: Cryptdeck uses your
-   system's disk service (udisks2). Elsewhere, or if that isn't available,
-   install [VeraCrypt](https://www.veracrypt.fr/en/Downloads.html).
+1. On Linux, Cryptdeck uses your system's disk service (udisks2), so you
+   don't need VeraCrypt. Many distributions (Ubuntu, Debian, Fedora) ship
+   udisks2 with VeraCrypt detection switched off; if so, Cryptdeck shows a
+   **Turn on VeraCrypt support** button that fixes it once, with one
+   administrator password (see [udisks2 setup](#udisks2-setup-linux)).
+   Elsewhere, or if udisks2 isn't available, install
+   [VeraCrypt](https://www.veracrypt.fr/en/Downloads.html).
 2. Download Cryptdeck from the
    [Releases page](https://github.com/m411s/Cryptdeck/releases). On Linux,
    take the AppImage, make it executable (`chmod +x Cryptdeck-*.AppImage`)
@@ -51,6 +55,23 @@ from `packaging/flatpak/` with a `git` source pointing at a release tag
 instead of `type: dir`, plus the generated `cargo-sources.json`, and open
 a pull request. Flathub's reviewers check the permissions in the manifest;
 each one has a comment explaining why it's needed.
+
+### udisks2 setup (Linux)
+
+A VeraCrypt volume has no visible header: without the password it looks
+like random data. udisks2 only checks unrecognised devices for VeraCrypt
+when the file `/etc/udisks2/tcrypt.conf` exists (it can be empty), and
+reads it when the service starts. **Turn on VeraCrypt support** creates
+that file and restarts udisks2 through your desktop's password dialog
+(polkit). To do it by hand:
+
+```bash
+sudo touch /etc/udisks2/tcrypt.conf
+sudo systemctl restart udisks2
+```
+
+Restarting udisks2 doesn't unmount anything. The Flatpak can't make this
+change from inside its sandbox, so there you'll need the commands above.
 
 ### Languages
 
@@ -90,7 +111,7 @@ tool as a separate process:
 
 | Platform | Backend | Status |
 | --- | --- | --- |
-| Linux | udisks2 (the service behind GNOME Disks and KDE's file manager), which uses `cryptsetup`; no VeraCrypt install needed | Default when udisks 2.9+ is running |
+| Linux | udisks2 (the service behind GNOME Disks and KDE's file manager), which uses `cryptsetup`; no VeraCrypt install needed | Default when udisks 2.9+ is running; needs [one-time setup](#udisks2-setup-linux) on some distributions |
 | Linux | `veracrypt --text` CLI, password passed on stdin | Fallback |
 | macOS | `veracrypt --text` CLI | Planned (should need little work) |
 | Windows | `VeraCrypt.exe` to unlock and lock; the VeraCrypt driver to list unlocked volumes | New: needs VeraCrypt installed |
@@ -114,7 +135,10 @@ folder" isn't offered with it.
   it and is on the roadmap.
 
 - With udisks2, the password goes to the udisks service over the local
-  system D-Bus, and Cryptdeck never runs anything as root. Keyfiles are
+  system D-Bus, and Cryptdeck never runs anything as root to unlock or
+  lock. The only exception is the one-time **Turn on VeraCrypt support**,
+  which runs `pkexec /bin/sh -c` with a fixed command that creates
+  `/etc/udisks2/tcrypt.conf` and restarts udisks2. Keyfiles are
   read by Cryptdeck and passed by content (keyfile folders aren't
   supported there).
 - With the VeraCrypt CLI, the password is written to VeraCrypt's stdin

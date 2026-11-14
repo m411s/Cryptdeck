@@ -17,6 +17,7 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use rust_i18n::t;
@@ -39,6 +40,16 @@ const IFACE_FILESYSTEM: &str = "org.freedesktop.UDisks2.Filesystem";
 
 /// udisks gained VeraCrypt (TCRYPT) unlocking with PIM and keyfiles in 2.9.
 const MIN_VERSION: (u32, u32) = (2, 9);
+
+/// udisks only checks unrecognised devices for a VeraCrypt (TCRYPT) header
+/// when this file exists, and reads it once at startup. Ubuntu, Debian and
+/// Fedora don't ship it, so VeraCrypt volumes look like random data there.
+const TCRYPT_CONF: &str = "/etc/udisks2/tcrypt.conf";
+
+/// Run as root by [`Udisks::setup`]: create `TCRYPT_CONF` (empty is enough)
+/// and restart udisks so it reads it.
+const SETUP_SCRIPT: &str =
+    "mkdir -p /etc/udisks2 && touch /etc/udisks2/tcrypt.conf && systemctl restart udisks2.service";
 
 /// How long to wait for udisks to finish probing a new device.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -116,6 +127,20 @@ impl Udisks {
         }
     }
 
+    /// When udisks didn't offer to unlock a device, say why in plain words:
+    /// either it didn't recognise the contents (VeraCrypt detection is off),
+    /// or the device holds something that isn't encrypted.
+    fn explain_not_encrypted(&self, path: &str) -> Option<Error> {
+        let objects = self.objects().ok()?;
+        let block = objects.get(path)?.get(IFACE_BLOCK)?;
+        let usage = string_prop(block, "IdUsage").unwrap_or_default();
+        match usage.as_str() {
+            "" => Some(Error::SetupNeeded),
+            "crypto" => None,
+            _ => Some(Error::InvalidInput(t!("udisks.not_encrypted").into())),
+        }
+    }
+
     /// Find the udisks object for a block device such as `/dev/sdb1`.
     fn find_block(&self, device: &Path) -> Result<String> {
         let device = device
@@ -176,7 +201,30 @@ impl Backend for Udisks {
     }
 
     fn check(&self) -> Result<String> {
+        if tcrypt_enabled() == Some(false) {
+            return Err(Error::SetupNeeded);
+        }
         Ok(t!("udisks.status", version = self.version).into())
+    }
+
+    fn setup(&self) -> Result<()> {
+        if in_flatpak() {
+            return Err(Error::CommandFailed(t!("udisks.setup_flatpak").into()));
+        }
+        let output = Command::new(crate::veracrypt::trusted_pkexec()?)
+            .args(["/bin/sh", "-c", SETUP_SCRIPT])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()?;
+        match output.status.code() {
+            Some(0) => Ok(()),
+            // pkexec: 126 = dialog dismissed, 127 = not authorized.
+            Some(126 | 127) => Err(Error::AuthCancelled),
+            _ => Err(Error::CommandFailed(
+                String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+            )),
+        }
     }
 
     fn supports_mount_point(&self) -> bool {
@@ -234,6 +282,7 @@ impl Backend for Udisks {
         };
 
         if let Err(e) = self.wait_for(&crypto, IFACE_ENCRYPTED) {
+            let e = self.explain_not_encrypted(&crypto).unwrap_or(e);
             self.clean_up(&crypto, loop_dev.as_deref(), false);
             return Err(e);
         }
@@ -340,6 +389,20 @@ fn unlocked_volumes(objects: &Objects) -> Vec<(String, MountedVolume)> {
         v.slot = i as u32 + 1;
     }
     found
+}
+
+fn in_flatpak() -> bool {
+    Path::new("/.flatpak-info").exists()
+}
+
+/// Whether udisks will recognise VeraCrypt volumes. `None` when Cryptdeck
+/// can't tell: the Flatpak sandbox can't see the host's `/etc`, and tests
+/// use a stand-in service.
+fn tcrypt_enabled() -> Option<bool> {
+    if in_flatpak() || std::env::var_os("CRYPTDECK_UDISKS_BUS").is_some() {
+        return None;
+    }
+    Some(Path::new(TCRYPT_CONF).exists())
 }
 
 fn proxy<'a>(conn: &Connection, path: &'a str, iface: &'a str) -> Result<Proxy<'a>> {
