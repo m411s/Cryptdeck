@@ -5,6 +5,7 @@ rust_i18n::i18n!("locales", fallback = "en");
 
 mod autolock;
 mod store;
+mod style;
 mod tray;
 
 use std::ffi::OsStr;
@@ -16,13 +17,15 @@ use std::sync::Arc;
 use cryptdeck_core::{Backend, Error, MountRequest, MountedVolume, MAX_PIM};
 use iced::event::{self, Event};
 use iced::keyboard::{self, key::Named, Key};
+use iced::theme::Mode;
 use iced::widget::{
     button, checkbox, column, container, operation, row, scrollable, space, text, text_input,
-    Column,
+    Column, Row,
 };
-use iced::{border, window, Alignment, Element, Length, Size, Subscription, Task, Theme};
+use iced::{window, Alignment, Element, Length, Size, Subscription, Task, Theme};
 use rust_i18n::t;
 use secrecy::SecretString;
+use style::{ThemePref, Tone, SEMIBOLD};
 use zeroize::Zeroizing;
 
 const VERACRYPT_DOWNLOAD: &str = "https://www.veracrypt.fr/en/Downloads.html";
@@ -93,7 +96,9 @@ struct App {
     busy: Option<Busy>,
     notice: Option<Notice>,
     drop_hover: bool,
-    theme_override: Option<Theme>,
+    /// The operating system's light or dark mode, followed when the
+    /// theme preference is "System".
+    system_mode: Mode,
     /// The main window, while it's open.
     window: Option<window::Id>,
     /// The system tray, if the desktop has one.
@@ -260,6 +265,8 @@ enum Message {
     ToggleSettings,
     LockOnSleepToggled(bool),
     LockOnScreenLockToggled(bool),
+    SystemTheme(Mode),
+    ThemePicked(ThemePref),
 }
 
 /// One row in the volume list: a saved volume, a mounted one, or both.
@@ -271,7 +278,13 @@ struct Entry<'a> {
 
 impl App {
     fn boot() -> (Self, Task<Message>) {
-        let settings = store::load_settings();
+        let mut settings = store::load_settings();
+        // For this run only; picking a theme in the app saves it.
+        match std::env::var("CRYPTDECK_THEME").as_deref() {
+            Ok("dark") => settings.theme = ThemePref::Dark,
+            Ok("light") => settings.theme = ThemePref::Light,
+            _ => {}
+        }
         let mut app = App {
             backend: cryptdeck_core::default_backend(),
             backend_state: BackendState::Checking,
@@ -281,11 +294,7 @@ impl App {
             busy: None,
             notice: None,
             drop_hover: false,
-            theme_override: match std::env::var("CRYPTDECK_THEME").as_deref() {
-                Ok("dark") => Some(Theme::Dark),
-                Ok("light") => Some(Theme::Light),
-                _ => None,
-            },
+            system_mode: Mode::None,
             window: None,
             tray: None,
             tray_state: tray::State::default(),
@@ -306,6 +315,7 @@ impl App {
             app.check(),
             Task::done(Message::Refresh),
             Task::run(autolock_rx, Message::AutoLock),
+            iced::system::theme().map(Message::SystemTheme),
         ]);
         (app, tasks)
     }
@@ -314,10 +324,10 @@ impl App {
         "Cryptdeck".into()
     }
 
-    /// Follow the system's light or dark mode, unless `CRYPTDECK_THEME` is
-    /// set to `light` or `dark`.
+    /// Light or dark as picked in Settings; "System" follows the OS.
+    /// `CRYPTDECK_THEME=light` or `dark` picks one for a single run.
     fn theme(&self, _window: window::Id) -> Option<Theme> {
-        self.theme_override.clone()
+        Some(self.settings.theme.resolve(self.system_mode))
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -325,6 +335,7 @@ impl App {
             window_events(),
             window::close_requests().map(Message::CloseRequested),
             tray::subscription().map(Message::Tray),
+            iced::system::theme_changes().map(Message::SystemTheme),
         ])
     }
 
@@ -722,6 +733,17 @@ impl App {
                 self.persist_settings();
                 Task::none()
             }
+            Message::SystemTheme(mode) => {
+                self.system_mode = mode;
+                Task::none()
+            }
+            Message::ThemePicked(pref) => {
+                if self.settings.theme != pref {
+                    self.settings.theme = pref;
+                    self.persist_settings();
+                }
+                Task::none()
+            }
         }
     }
 
@@ -878,27 +900,22 @@ impl App {
     fn view(&self, _window: window::Id) -> Element<'_, Message> {
         if self.drop_hover {
             return container(
-                column![
-                    text(t!("drop.title")).size(22),
-                    text(t!("drop.body")).style(text::secondary),
-                ]
-                .spacing(8)
-                .align_x(Alignment::Center),
+                container(
+                    column![
+                        text(t!("drop.title")).size(22).font(SEMIBOLD),
+                        text(t!("drop.body")).style(style::muted),
+                    ]
+                    .spacing(8)
+                    .align_x(Alignment::Center),
+                )
+                .center(Length::Fill)
+                .style(style::drop_zone),
             )
-            .center(Length::Fill)
-            .padding(24)
-            .style(|theme: &Theme| {
-                let p = theme.extended_palette();
-                container::Style {
-                    background: Some(p.primary.weak.color.scale_alpha(0.25).into()),
-                    border: border::rounded(16).color(p.primary.base.color).width(3),
-                    ..container::Style::default()
-                }
-            })
+            .padding(16)
             .into();
         }
 
-        let mut page = Column::new().spacing(16).push(self.header());
+        let mut page = Column::new().spacing(20).push(self.header());
         if self.show_settings {
             page = page.push(self.settings_view());
         }
@@ -913,18 +930,30 @@ impl App {
         if entries.is_empty() {
             page = page.push(self.empty_state());
         } else {
-            let mut list = Column::new().spacing(8);
+            let mut list = Column::new().spacing(10);
             for entry in &entries {
                 list = list.push(self.volume_card(entry));
             }
             page = page
-                .push(text(t!("list.title")).size(18))
-                .push(list)
+                .push(
+                    column![
+                        row![
+                            text(t!("list.title"))
+                                .size(13)
+                                .font(SEMIBOLD)
+                                .style(style::muted),
+                            text(entries.len().to_string()).size(13).style(style::muted),
+                        ]
+                        .spacing(6),
+                        list,
+                    ]
+                    .spacing(10),
+                )
                 .push(self.footer());
         }
 
         scrollable(
-            container(page.padding(24).max_width(820))
+            container(page.padding([28, 28]).max_width(820))
                 .center_x(Length::Fill)
                 .padding(iced::Padding::ZERO),
         )
@@ -941,10 +970,13 @@ impl App {
             | BackendState::SettingUp
             | BackendState::Broken(_) => String::new(),
         };
+        let mut title = column![text("Cryptdeck").size(26).font(SEMIBOLD)].spacing(2);
+        if !status.is_empty() {
+            title = title.push(text(status).size(12).style(style::muted));
+        }
         row![
-            text("Cryptdeck").size(28),
+            title,
             space::horizontal(),
-            text(status).size(12).style(text::secondary),
             button(
                 text(if self.show_settings {
                     t!("header.close_settings")
@@ -953,12 +985,36 @@ impl App {
                 })
                 .size(13)
             )
-            .style(button::text)
+            .padding([7, 12])
+            .style(if self.show_settings {
+                style::btn_secondary
+            } else {
+                style::btn_ghost
+            })
             .on_press(Message::ToggleSettings),
         ]
-        .spacing(8)
+        .spacing(10)
         .align_y(Alignment::Center)
         .into()
+    }
+
+    /// System / Light / Dark.
+    fn theme_switch(&self) -> Element<'_, Message> {
+        let mut options = Row::new().spacing(2);
+        for pref in ThemePref::ALL {
+            let label = match pref {
+                ThemePref::System => t!("theme.system"),
+                ThemePref::Light => t!("theme.light"),
+                ThemePref::Dark => t!("theme.dark"),
+            };
+            options = options.push(
+                button(text(label).size(12))
+                    .padding([5, 10])
+                    .style(style::btn_segment(self.settings.theme == pref))
+                    .on_press(Message::ThemePicked(pref)),
+            );
+        }
+        container(options).padding(3).style(style::track).into()
     }
 
     fn settings_view(&self) -> Element<'_, Message> {
@@ -973,27 +1029,47 @@ impl App {
             }
         };
         let mut col = column![
-            text(t!("settings.autolock")).size(16),
+            text(t!("settings.autolock")).size(15).font(SEMIBOLD),
             checkbox(self.settings.lock_on_sleep)
                 .label(t!("settings.on_sleep"))
+                .style(style::check)
                 .on_toggle_maybe(available.then_some(Message::LockOnSleepToggled)),
             checkbox(self.settings.lock_on_screen_lock)
                 .label(t!("settings.on_screen_lock"))
+                .style(style::check)
                 .on_toggle_maybe(
                     (available && screen_lock).then_some(Message::LockOnScreenLockToggled)
                 ),
-            text(t!("settings.open_files"))
-                .size(12)
-                .style(text::secondary),
+            text(t!("settings.open_files")).size(12).style(style::muted),
         ]
-        .spacing(10);
+        .spacing(12);
         if let Some(status) = status {
-            col = col.push(text(status).size(12).style(text::secondary));
+            col = col.push(text(status).size(12).style(style::muted));
         }
+        let appearance = column![
+            text(t!("settings.appearance")).size(15).font(SEMIBOLD),
+            row![
+                text(t!("settings.theme")).width(Length::Fill),
+                self.theme_switch(),
+            ]
+            .spacing(12)
+            .align_y(Alignment::Center),
+            text(t!("settings.theme_hint")).size(12).style(style::muted),
+        ]
+        .spacing(12);
+        let col = column![
+            appearance,
+            container(space::horizontal())
+                .height(1)
+                .width(Length::Fill)
+                .style(style::divider),
+            col,
+        ]
+        .spacing(20);
         container(col)
-            .padding(16)
+            .padding(20)
             .width(Length::Fill)
-            .style(card_style)
+            .style(style::card)
             .into()
     }
 
@@ -1012,21 +1088,25 @@ impl App {
         Some(
             container(
                 column![
-                    text(title).size(16),
+                    text(title).size(15).font(SEMIBOLD),
                     text(body).size(14),
                     row![
-                        button(text(t!("banner.get"))).on_press(Message::GetVeraCrypt),
+                        button(text(t!("banner.get")))
+                            .padding([8, 16])
+                            .style(style::btn_primary)
+                            .on_press(Message::GetVeraCrypt),
                         button(text(t!("banner.check_again")))
-                            .style(button::secondary)
+                            .padding([8, 16])
+                            .style(style::btn_secondary)
                             .on_press(Message::Recheck),
                     ]
                     .spacing(8),
                 ]
-                .spacing(8),
+                .spacing(10),
             )
-            .padding(16)
+            .padding(18)
             .width(Length::Fill)
-            .style(|theme: &Theme| tinted(theme.extended_palette().warning.weak))
+            .style(style::banner(Tone::Warning))
             .into(),
         )
     }
@@ -1040,53 +1120,49 @@ impl App {
         };
         container(
             column![
-                text(t!("banner.setup.title")).size(16),
+                text(t!("banner.setup.title")).size(15).font(SEMIBOLD),
                 text(t!("banner.setup.body")).size(14),
                 row![
-                    button(text(turn_on)).on_press_maybe((!running).then_some(Message::RunSetup)),
+                    button(text(turn_on))
+                        .padding([8, 16])
+                        .style(style::btn_primary)
+                        .on_press_maybe((!running).then_some(Message::RunSetup)),
                     button(text(t!("banner.check_again")))
-                        .style(button::secondary)
+                        .padding([8, 16])
+                        .style(style::btn_secondary)
                         .on_press_maybe((!running).then_some(Message::Recheck)),
                 ]
                 .spacing(8),
-                text(t!("banner.setup.manual"))
-                    .size(12)
-                    .style(text::secondary),
+                text(t!("banner.setup.manual")).size(12).style(style::muted),
             ]
-            .spacing(8),
+            .spacing(10),
         )
-        .padding(16)
+        .padding(18)
         .width(Length::Fill)
-        .style(|theme: &Theme| tinted(theme.extended_palette().warning.weak))
+        .style(style::banner(Tone::Warning))
         .into()
     }
 
     fn notice_view(&self) -> Option<Element<'_, Message>> {
-        let (message, success) = match self.notice.as_ref()? {
-            Notice::Success(m) => (m, true),
-            Notice::Error(m) => (m, false),
+        let (message, tone) = match self.notice.as_ref()? {
+            Notice::Success(m) => (m, Tone::Success),
+            Notice::Error(m) => (m, Tone::Danger),
         };
         Some(
             container(
                 row![
-                    text(message.as_str()).width(Length::Fill),
+                    text(message.as_str()).size(14).width(Length::Fill),
                     button(text(t!("dismiss")).size(13))
-                        .style(button::text)
+                        .padding([5, 10])
+                        .style(style::btn_ghost)
                         .on_press(Message::DismissNotice),
                 ]
                 .spacing(8)
                 .align_y(Alignment::Center),
             )
-            .padding([8, 12])
+            .padding(iced::Padding::new(8.0).left(16))
             .width(Length::Fill)
-            .style(move |theme: &Theme| {
-                let p = theme.extended_palette();
-                tinted(if success {
-                    p.success.weak
-                } else {
-                    p.danger.weak
-                })
-            })
+            .style(style::banner(tone))
             .into(),
         )
     }
@@ -1094,20 +1170,21 @@ impl App {
     fn empty_state(&self) -> Element<'_, Message> {
         container(
             column![
-                text(t!("empty.title")).size(22),
+                text(t!("empty.title")).size(20).font(SEMIBOLD),
                 text(t!("empty.body"))
-                    .style(text::secondary)
+                    .style(style::muted)
                     .align_x(Alignment::Center),
-                button(text(t!("add_volume")).size(16))
-                    .padding([10, 24])
+                button(text(t!("add_volume")).size(15))
+                    .padding([10, 22])
+                    .style(style::btn_primary)
                     .on_press(Message::AddVolume),
             ]
             .spacing(14)
             .align_x(Alignment::Center),
         )
-        .padding(40)
+        .padding(48)
         .width(Length::Fill)
-        .style(card_style)
+        .style(style::card)
         .into()
     }
 
@@ -1116,14 +1193,16 @@ impl App {
         column![
             row![
                 button(text(t!("add_volume")))
-                    .style(button::secondary)
+                    .padding([8, 16])
+                    .style(style::btn_secondary)
                     .on_press(Message::AddVolume),
-                text(t!("footer.drag")).size(13).style(text::secondary),
+                text(t!("footer.drag")).size(13).style(style::muted),
                 space::horizontal(),
                 if any_mounted {
                     Element::from(
                         button(text(t!("lock_all")))
-                            .style(button::secondary)
+                            .padding([8, 16])
+                            .style(style::btn_danger_ghost)
                             .on_press_maybe(self.busy.is_none().then_some(Message::LockAll)),
                     )
                 } else {
@@ -1138,9 +1217,9 @@ impl App {
                 t!("footer.stay_unlocked")
             })
             .size(12)
-            .style(text::secondary),
+            .style(style::muted),
         ]
-        .spacing(10)
+        .spacing(12)
         .into()
     }
 
@@ -1163,12 +1242,16 @@ impl App {
         let can_unlock = idle && !matches!(self.backend_state, BackendState::Missing);
 
         let actions: Element<_> = if let Some(label) = busy_label {
-            text(label).style(text::secondary).into()
+            text(label).size(13).style(style::muted).into()
         } else if let Some(m) = entry.mounted {
             row![
-                button(text(t!("open"))).on_press_maybe(m.mount_point.clone().map(Message::Open)),
+                button(text(t!("open")))
+                    .padding([7, 14])
+                    .style(style::btn_primary)
+                    .on_press_maybe(m.mount_point.clone().map(Message::Open)),
                 button(text(t!("lock")))
-                    .style(button::secondary)
+                    .padding([7, 14])
+                    .style(style::btn_secondary)
                     .on_press_maybe(idle.then(|| Message::Lock(m.clone()))),
             ]
             .spacing(8)
@@ -1176,15 +1259,19 @@ impl App {
         } else if form_open.is_some() {
             space::horizontal().width(0).into()
         } else {
-            let mut r = row![button(text(t!("unlock"))).on_press_maybe(
-                can_unlock.then(|| Message::StartUnlock(entry.path.to_path_buf()))
-            )]
+            let mut r = row![button(text(t!("unlock")))
+                .padding([7, 14])
+                .style(style::btn_primary)
+                .on_press_maybe(
+                    can_unlock.then(|| Message::StartUnlock(entry.path.to_path_buf()))
+                )]
             .spacing(4)
             .align_y(Alignment::Center);
             if entry.saved {
                 r = r.push(
                     button(text(t!("forget")).size(13))
-                        .style(button::text)
+                        .padding([7, 10])
+                        .style(style::btn_ghost)
                         .on_press_maybe(idle.then(|| Message::Forget(entry.path.to_path_buf()))),
                 );
             }
@@ -1193,25 +1280,36 @@ impl App {
 
         let summary = row![
             column![
-                text(display_name(entry.path)).size(16),
-                text(subtitle).size(13).style(text::secondary),
+                row![
+                    text(display_name(entry.path)).size(15).font(SEMIBOLD),
+                    status_pill(unlocked),
+                ]
+                .spacing(10)
+                .align_y(Alignment::Center),
+                text(subtitle).size(13).style(style::muted),
             ]
-            .spacing(2)
+            .spacing(4)
             .width(Length::Fill),
-            status_pill(unlocked),
             actions,
         ]
         .spacing(12)
         .align_y(Alignment::Center);
 
-        let mut card = Column::new().spacing(14).push(summary);
+        let mut card = Column::new().spacing(16).push(summary);
         if let Some(form) = form_open {
-            card = card.push(self.unlock_form(form));
+            card = card
+                .push(
+                    container(space::horizontal())
+                        .height(1)
+                        .width(Length::Fill)
+                        .style(style::divider),
+                )
+                .push(self.unlock_form(form));
         }
         container(card)
-            .padding(14)
+            .padding([16, 18])
             .width(Length::Fill)
-            .style(card_style)
+            .style(style::card)
             .into()
     }
 
@@ -1226,13 +1324,14 @@ impl App {
                     (!busy).then_some(|p| Message::PasswordChanged(Password(Zeroizing::new(p))))
                 )
                 .on_submit(Message::Unlock)
-                .padding(10),
+                .padding(10)
+                .style(style::input),
             button(text(if f.show_password {
                 t!("hide")
             } else {
                 t!("show")
             }))
-            .style(button::secondary)
+            .style(style::btn_secondary)
             .padding(10)
             .on_press(Message::ToggleShowPassword),
         ]
@@ -1246,10 +1345,12 @@ impl App {
         };
         let buttons = row![
             button(text(unlock_label))
-                .padding([8, 20])
+                .padding([9, 20])
+                .style(style::btn_primary)
                 .on_press_maybe((!busy).then_some(Message::Unlock)),
             button(text(t!("cancel")))
-                .style(button::text)
+                .padding([9, 14])
+                .style(style::btn_ghost)
                 .on_press_maybe((!busy).then_some(Message::CancelUnlock)),
             space::horizontal(),
             button(
@@ -1260,15 +1361,16 @@ impl App {
                 })
                 .size(13)
             )
-            .style(button::text)
+            .padding([7, 10])
+            .style(style::btn_ghost)
             .on_press(Message::ToggleAdvanced),
         ]
         .spacing(8)
         .align_y(Alignment::Center);
 
-        let mut form = Column::new().spacing(10).push(password);
+        let mut form = Column::new().spacing(12).push(password);
         if let Some(error) = &f.error {
-            form = form.push(text(error.as_str()).size(14).style(text::danger));
+            form = form.push(text(error.as_str()).size(14).style(style::danger_text));
         }
         form = form.push(buttons);
         if f.advanced {
@@ -1278,8 +1380,8 @@ impl App {
     }
 
     fn advanced_options<'a>(&'a self, f: &'a UnlockForm, busy: bool) -> Element<'a, Message> {
-        let label = |s: String| text(s).width(180);
-        let hint = |s: String| text(s).size(12).style(text::secondary);
+        let label = |s: String| text(s).size(14).width(160);
+        let hint = |s: String| text(s).size(12).style(style::muted);
 
         let pim = row![
             label("PIM".into()),
@@ -1288,6 +1390,8 @@ impl App {
                     .secure(true)
                     .on_input_maybe((!busy).then_some(Message::PimChanged))
                     .on_submit(Message::Unlock)
+                    .padding(8)
+                    .style(style::input)
                     .width(320),
                 hint(t!("pim.hint").into()),
             ]
@@ -1301,7 +1405,8 @@ impl App {
                 row![
                     text(kf.display().to_string()).size(13).width(Length::Fill),
                     button(text(t!("remove")).size(12))
-                        .style(button::text)
+                        .padding([4, 8])
+                        .style(style::btn_danger_ghost)
                         .on_press(Message::RemoveKeyfile(i)),
                 ]
                 .align_y(Alignment::Center),
@@ -1312,7 +1417,8 @@ impl App {
             column![
                 keyfile_list,
                 button(text(t!("add_keyfiles")))
-                    .style(button::secondary)
+                    .padding([7, 14])
+                    .style(style::btn_secondary)
                     .on_press(Message::AddKeyfiles),
             ]
             .spacing(6)
@@ -1339,9 +1445,12 @@ impl App {
                     row![
                         text_input(&t!("folder.placeholder"), &f.mount_point)
                             .on_input_maybe((!busy).then_some(Message::MountPointChanged))
-                            .on_submit(Message::Unlock),
+                            .on_submit(Message::Unlock)
+                            .padding(8)
+                            .style(style::input),
                         button(text(t!("choose")))
-                            .style(button::secondary)
+                            .padding([7, 14])
+                            .style(style::btn_secondary)
                             .on_press(Message::BrowseMountPoint),
                     ]
                     .spacing(8)
@@ -1360,6 +1469,7 @@ impl App {
             column![
                 checkbox(f.hidden)
                     .label(t!("hidden.label"))
+                    .style(style::check)
                     .on_toggle(Message::HiddenToggled),
                 hint(t!("hidden.hint").into()),
             ]
@@ -1371,12 +1481,13 @@ impl App {
             label(String::new()),
             checkbox(f.read_only)
                 .label(t!("read_only"))
+                .style(style::check)
                 .on_toggle(Message::ReadOnlyToggled),
         ]
         .spacing(8);
 
-        container(column![pim, keyfiles, mount_point, hidden, read_only].spacing(14))
-            .padding(iced::Padding::new(0.0).top(6))
+        container(column![pim, keyfiles, mount_point, hidden, read_only].spacing(16))
+            .padding(iced::Padding::new(0.0).top(4))
             .into()
     }
 }
@@ -1397,54 +1508,28 @@ fn window_events() -> Subscription<Message> {
     })
 }
 
+/// "● Locked" / "● Unlocked".
 fn status_pill<'a>(unlocked: bool) -> Element<'a, Message> {
     container(
-        text(if unlocked {
-            t!("status.unlocked")
-        } else {
-            t!("status.locked")
-        })
-        .size(12),
+        row![
+            container(space::horizontal())
+                .width(6)
+                .height(6)
+                .style(style::dot(unlocked)),
+            text(if unlocked {
+                t!("status.unlocked")
+            } else {
+                t!("status.locked")
+            })
+            .size(11)
+            .font(SEMIBOLD),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center),
     )
-    .padding([2, 10])
-    .style(move |theme: &Theme| {
-        let p = theme.extended_palette();
-        let pair = if unlocked {
-            p.success.base
-        } else {
-            p.background.strong
-        };
-        container::Style {
-            background: Some(pair.color.into()),
-            text_color: Some(pair.text),
-            border: border::rounded(10),
-            ..container::Style::default()
-        }
-    })
+    .padding([2, 8])
+    .style(style::pill(unlocked))
     .into()
-}
-
-/// A card: the window background with a subtle border and rounded corners.
-fn card_style(theme: &Theme) -> container::Style {
-    let p = theme.extended_palette();
-    container::Style {
-        background: Some(p.background.base.color.into()),
-        text_color: Some(p.background.base.text),
-        border: border::rounded(12)
-            .color(p.background.strong.color)
-            .width(1),
-        ..container::Style::default()
-    }
-}
-
-/// A rounded box tinted with a palette colour, for banners and notices.
-fn tinted(pair: iced::theme::palette::Pair) -> container::Style {
-    container::Style {
-        background: Some(pair.color.into()),
-        text_color: Some(pair.text),
-        border: border::rounded(8),
-        ..container::Style::default()
-    }
 }
 
 /// A short, human-friendly name for a volume: the file name, or the full

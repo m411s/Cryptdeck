@@ -80,7 +80,25 @@ header.settings:
 header.close_settings:
   en: "Close settings"
   de: "Einstellungen schließen"
+theme.system:
+  en: "System"
+  de: "System"
+theme.light:
+  en: "Light"
+  de: "Hell"
+theme.dark:
+  en: "Dark"
+  de: "Dunkel"
 
+settings.appearance:
+  en: "Appearance"
+  de: "Darstellung"
+settings.theme:
+  en: "Light or dark mode"
+  de: "Heller oder dunkler Modus"
+settings.theme_hint:
+  en: "“System” follows your operating system and switches along with it."
+  de: "„System“ folgt Ihrem Betriebssystem und wechselt automatisch mit."
 settings.autolock:
   en: "Automatic locking"
   de: "Automatisches Sperren"

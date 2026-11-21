@@ -182,7 +182,7 @@ CRYPTDECK_BACKEND=mock cargo run
 | --- | --- |
 | `CRYPTDECK_BACKEND=udisks`, `veracrypt` or `mock` | Force a backend (`mock` is an in-memory demo) |
 | `CRYPTDECK_VERACRYPT=/path/to/veracrypt` | Use a specific `veracrypt` binary (it must be root-owned to mount) |
-| `CRYPTDECK_THEME=light` or `dark` | Override the system light/dark mode |
+| `CRYPTDECK_THEME=light` or `dark` | Use light or dark for this run, whatever is picked in the app |
 | `CRYPTDECK_LANG=de` or `en` | Override the system language |
 | `CRYPTDECK_CONFIG_DIR=/path` | Keep the saved volume list somewhere else |
 

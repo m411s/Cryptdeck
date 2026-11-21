@@ -22,6 +22,8 @@ const VERSION: u32 = 1;
 pub struct Settings {
     pub lock_on_sleep: bool,
     pub lock_on_screen_lock: bool,
+    /// Light, dark, or follow the system.
+    pub theme: crate::style::ThemePref,
 }
 
 impl Default for Settings {
@@ -29,6 +31,7 @@ impl Default for Settings {
         Self {
             lock_on_sleep: true,
             lock_on_screen_lock: false,
+            theme: crate::style::ThemePref::System,
         }
     }
 }
@@ -124,7 +127,8 @@ mod tests {
             partial,
             Settings {
                 lock_on_sleep: true,
-                lock_on_screen_lock: true
+                lock_on_screen_lock: true,
+                theme: crate::style::ThemePref::System,
             }
         );
     }
