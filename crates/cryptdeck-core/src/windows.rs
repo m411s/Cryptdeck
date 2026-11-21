@@ -339,14 +339,14 @@ mod tests {
     #[test]
     fn parses_the_driver_mount_list() {
         let buf = list_buffer(&[
-            (25, r"\??\C:\Users\Matt\Documents\Private Vault.hc"),
+            (25, r"\??\C:\Users\me\Documents\Private Vault.hc"),
             (12, r"\Device\Harddisk1\Partition2"),
         ]);
         assert_eq!(
             parse_mount_list(&buf),
             vec![
                 ('M', r"\Device\Harddisk1\Partition2".to_string()),
-                ('Z', r"C:\Users\Matt\Documents\Private Vault.hc".to_string()),
+                ('Z', r"C:\Users\me\Documents\Private Vault.hc".to_string()),
             ]
         );
     }
