@@ -214,6 +214,15 @@ jobs:
         with:
           name: flatpak-cargo-sources
           path: packaging/flatpak
+      # The runtimes preinstalled in the image live on the container's
+      # overlay filesystem, where ostree can't rename directories
+      # ("Invalid cross-device link"), so updating them fails once Flathub
+      # has a newer SDK than the image. Work on a copy in the job's temp
+      # folder, which is a regular bind mount.
+      - name: Move Flatpak's system folder off the overlay filesystem
+        run: |
+          cp -a /var/lib/flatpak "$RUNNER_TEMP/flatpak"
+          echo "FLATPAK_SYSTEM_DIR=$RUNNER_TEMP/flatpak" >> "$GITHUB_ENV"
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@933e9e8ca36e85046ebca8e211f0785c6becac40
         with:
           manifest-path: packaging/flatpak/io.github.m411s.Cryptdeck.yml
