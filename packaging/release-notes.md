@@ -1,3 +1,8 @@
+> **Early prototype, use at your own risk.** Provided "as is", without
+> warranty, and with no responsibility for any data loss. Keep backups of
+> your files and of each volume's header (VeraCrypt: Tools → Backup Volume
+> Header). Not affiliated with or endorsed by IDRIX or the VeraCrypt project.
+
 ## Downloads
 
 On Linux, Cryptdeck uses your system's disk service (udisks2), so VeraCrypt
@@ -29,3 +34,7 @@ launch shows a warning:
 - **Windows:** in the SmartScreen dialog, choose **More info**, then **Run anyway**.
 
 Check a download against `SHA256SUMS.txt` with `sha256sum -c SHA256SUMS.txt --ignore-missing`.
+
+Each download includes Cryptdeck's licenses (MIT or Apache 2.0) and
+`THIRD-PARTY-LICENSES.html` with the licenses of the open-source crates it's
+built from.

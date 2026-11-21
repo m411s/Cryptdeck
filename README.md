@@ -5,10 +5,19 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
 
 ![Cryptdeck with one volume unlocked](docs/screenshot.png)
 
-> **Status: early prototype.** Linux works through the VeraCrypt CLI.
-> Windows support (with VeraCrypt installed) is new and still being tested.
-> macOS builds run, but can't unlock volumes yet. Don't trust it
-> with data you can't afford to lose yet.
+> [!WARNING]
+> **Early prototype, use at your own risk.** Linux works (through udisks2,
+> or the VeraCrypt CLI). Windows support is new and still being tested, and
+> macOS builds run but can't unlock volumes yet.
+>
+> Cryptdeck is provided "as is", without warranty of any kind, and its
+> authors accept **no responsibility for any data loss** or other damage
+> (see [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE)).
+> Keep backups of anything you can't afford to lose: copies of your files,
+> and VeraCrypt's backup of each volume's header (VeraCrypt: **Tools →
+> Backup Volume Header**). Nobody can recover a volume whose password
+> you've forgotten. Cryptdeck is an independent project, not made, endorsed
+> or supported by IDRIX or the VeraCrypt project.
 
 ## Using Cryptdeck
 
@@ -101,8 +110,12 @@ exit. KDE, Xfce, Cinnamon, MATE and Ubuntu's GNOME show it out of the box.
 On other GNOME setups, install the "AppIndicator and KStatusNotifierItem
 Support" extension. Without a tray, closing the window quits as usual.
 
-Cryptdeck is an independent project. It is not affiliated with or endorsed
-by IDRIX or the VeraCrypt project.
+### Privacy
+
+Cryptdeck collects nothing and has no servers: no telemetry, analytics,
+crash reports or accounts, and it makes no network connections of its own.
+It remembers only where your volumes are and your settings, on your
+computer. See [PRIVACY.md](PRIVACY.md).
 
 ## How it works
 
@@ -288,3 +301,19 @@ at your option.
 Cryptdeck runs VeraCrypt as a separate program and contains no VeraCrypt
 code, so VeraCrypt's licenses (Apache 2.0 and the TrueCrypt License 3.0) do
 not apply to it.
+
+The downloads also contain the open-source Rust crates Cryptdeck is built
+from. Their licenses and notices are in `THIRD-PARTY-LICENSES.html`, which
+comes with every download (in the AppImage and Flatpak under
+`share/licenses/`, on macOS in `Cryptdeck.app/Contents/Resources`). It's
+generated from `Cargo.lock` with
+[cargo-about](https://embarkstudios.github.io/cargo-about/):
+
+```bash
+cargo install --locked cargo-about --features cli
+cargo about generate --locked --fail packaging/about.hbs -o THIRD-PARTY-LICENSES.html
+```
+
+"VeraCrypt" is a name of IDRIX, used here only to say what Cryptdeck works
+with. Cryptdeck is not affiliated with or endorsed by IDRIX or the
+VeraCrypt project.

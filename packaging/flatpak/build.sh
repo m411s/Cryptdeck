@@ -25,6 +25,15 @@ if ! echo "$gen_sha256  $gen" | sha256sum -c --status - 2>/dev/null; then
 fi
 python3 "$gen" "$root/Cargo.lock" -o "$here/cargo-sources.json"
 
+# License notices of the bundled crates, if cargo-about is installed
+# (`cargo install --locked cargo-about --features cli`).
+if command -v cargo-about >/dev/null; then
+    (cd "$root" && cargo about generate --locked --fail packaging/about.hbs \
+        -o THIRD-PARTY-LICENSES.html)
+else
+    echo "note: cargo-about not found, building without THIRD-PARTY-LICENSES.html" >&2
+fi
+
 flatpak remote-add --user --if-not-exists flathub \
     https://dl.flathub.org/repo/flathub.flatpakrepo
 flatpak-builder --user --install-deps-from=flathub --force-clean \
