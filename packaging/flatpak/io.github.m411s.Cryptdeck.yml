@@ -49,6 +49,13 @@ modules:
         /app/share/metainfo/io.github.m411s.Cryptdeck.metainfo.xml
       - install -Dm644 assets/cryptdeck.svg
         /app/share/icons/hicolor/scalable/apps/io.github.m411s.Cryptdeck.svg
+      # Our licenses, plus the notices of the bundled crates when they've
+      # been generated (cargo-about, see about.toml; Release always does).
+      - install -Dm644 -t /app/share/licenses/io.github.m411s.Cryptdeck
+        LICENSE-MIT LICENSE-APACHE
+      - if [ -f THIRD-PARTY-LICENSES.html ]; then install -Dm644 -t
+        /app/share/licenses/io.github.m411s.Cryptdeck THIRD-PARTY-LICENSES.html;
+        fi
     sources:
       - type: dir
         path: ../..
