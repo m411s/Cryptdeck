@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "cryptdeck"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "cryptdeck-core",
  "dirs",
@@ -720,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "cryptdeck-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "rust-i18n",
