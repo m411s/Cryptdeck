@@ -133,6 +133,8 @@ jobs:
         # here (see packaging/linux/build-appimage.sh). Each build logs the
         # checksums of what it downloaded.
         run: packaging/linux/build-appimage.sh target/release/cryptdeck "$VERSION" dist
+      - name: Debian package
+        run: packaging/linux/build-deb.sh target/release/cryptdeck "$VERSION" dist
       - name: Tarball
         run: |
           name="cryptdeck-$VERSION-linux-x86_64"

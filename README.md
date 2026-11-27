@@ -32,7 +32,7 @@ A cross-platform desktop GUI for VeraCrypt volumes, written in Rust with
    [Releases page](https://github.com/m411s/Cryptdeck/releases). On Linux,
    take the AppImage, make it executable (`chmod +x Cryptdeck-*.AppImage`)
    and run it.
-   Or install the Flatpak from the same page (see [Flatpak](#flatpak) below).
+   Or install the `.deb` (`sudo apt install ./cryptdeck_*_amd64.deb`), or the Flatpak from the same page (see [Flatpak](#flatpak) below).
 3. Choose **Add volume…**, or drag a volume file onto the window.
 4. Enter the password and choose **Unlock**. If you set a PIM or keyfiles
    when creating the volume, add them under **Advanced options**.

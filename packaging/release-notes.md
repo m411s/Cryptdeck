@@ -15,6 +15,7 @@ administrator password. On other systems, Cryptdeck needs
 | Platform | File | Status |
 | --- | --- | --- |
 | Linux | `Cryptdeck-…-x86_64.AppImage` | Works |
+| Linux | `cryptdeck_…_amd64.deb` | Works (Debian, Ubuntu, Mint and similar; install with `sudo apt install ./cryptdeck_*_amd64.deb`) |
 | Linux | `cryptdeck-…-linux-x86_64.tar.gz` | Works (plain binary) |
 | Linux | `Cryptdeck-…-x86_64.flatpak` | Works (needs udisks2, and on some distributions a one-time setup command: see the README's "udisks2 setup"; install with `flatpak install --user ./Cryptdeck-*.flatpak`) |
 | macOS (Apple Silicon and Intel) | `Cryptdeck-…-macos-universal.dmg` | Preview: the app runs, but can't unlock volumes yet |
