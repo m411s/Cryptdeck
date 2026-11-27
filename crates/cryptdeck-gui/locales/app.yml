@@ -57,6 +57,9 @@ notice.is_folder:
 notice.settings_save_failed:
   en: "Couldn't save your settings: %{error}"
   de: "Die Einstellungen konnten nicht gespeichert werden: %{error}"
+notice.autostart_failed:
+  en: "Couldn't change starting at login: %{error}"
+  de: "Der Start bei der Anmeldung konnte nicht geändert werden: %{error}"
 notice.list_save_failed:
   en: "Couldn't save your volume list: %{error}"
   de: "Die Volume-Liste konnte nicht gespeichert werden: %{error}"
@@ -99,6 +102,18 @@ settings.theme:
 settings.theme_hint:
   en: "“System” follows your operating system and switches along with it."
   de: "„System“ folgt Ihrem Betriebssystem und wechselt automatisch mit."
+settings.startup:
+  en: "Startup"
+  de: "Start"
+settings.start_at_login:
+  en: "Start Cryptdeck when I log in"
+  de: "Cryptdeck bei der Anmeldung starten"
+settings.start_at_login_hint:
+  en: "Cryptdeck starts in the system tray, without opening a window."
+  de: "Cryptdeck startet im Infobereich, ohne ein Fenster zu öffnen."
+settings.start_at_login_unavailable:
+  en: "Not available here: the Flatpak can't set this up, and this system isn't supported yet."
+  de: "Hier nicht verfügbar: Das Flatpak kann das nicht einrichten, und dieses System wird noch nicht unterstützt."
 settings.autolock:
   en: "Automatic locking"
   de: "Automatisches Sperren"

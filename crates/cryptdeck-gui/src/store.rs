@@ -22,6 +22,8 @@ const VERSION: u32 = 1;
 pub struct Settings {
     pub lock_on_sleep: bool,
     pub lock_on_screen_lock: bool,
+    /// Start Cryptdeck (in the tray) when the user logs in.
+    pub start_at_login: bool,
     /// Light, dark, or follow the system.
     pub theme: crate::style::ThemePref,
 }
@@ -31,6 +33,7 @@ impl Default for Settings {
         Self {
             lock_on_sleep: true,
             lock_on_screen_lock: false,
+            start_at_login: false,
             theme: crate::style::ThemePref::System,
         }
     }
@@ -128,6 +131,7 @@ mod tests {
             Settings {
                 lock_on_sleep: true,
                 lock_on_screen_lock: true,
+                start_at_login: false,
                 theme: crate::style::ThemePref::System,
             }
         );

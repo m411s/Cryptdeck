@@ -4,6 +4,7 @@
 rust_i18n::i18n!("locales", fallback = "en");
 
 mod autolock;
+mod autostart;
 mod store;
 mod style;
 mod tray;
@@ -265,6 +266,7 @@ enum Message {
     ToggleSettings,
     LockOnSleepToggled(bool),
     LockOnScreenLockToggled(bool),
+    StartAtLoginToggled(bool),
     SystemTheme(Mode),
     ThemePicked(ThemePref),
 }
@@ -308,10 +310,24 @@ impl App {
         };
         let (autolock_tx, autolock_rx) = iced::futures::channel::mpsc::unbounded();
         autolock::start(app.backend.clone(), app.autolock.clone(), autolock_tx);
-        let (id, open) = window::open(window_settings());
-        app.window = Some(id);
+        // Started at login: stay in the tray. If there turns out to be no
+        // tray, `handle_tray` opens the window so Cryptdeck isn't invisible.
+        let background = std::env::args().any(|a| a == autostart::BACKGROUND_FLAG);
+        let open = if background {
+            Task::none()
+        } else {
+            let (id, open) = window::open(window_settings());
+            app.window = Some(id);
+            open.map(|_| Message::WindowOpened)
+        };
+        // Keep the autostart entry pointing at wherever this copy lives now.
+        if app.settings.start_at_login && autostart::supported() {
+            if let Err(e) = autostart::set(true) {
+                eprintln!("cryptdeck: couldn't refresh the autostart entry: {e}");
+            }
+        }
         let tasks = Task::batch([
-            open.map(|_| Message::WindowOpened),
+            open,
             app.check(),
             Task::done(Message::Refresh),
             Task::run(autolock_rx, Message::AutoLock),
@@ -733,6 +749,20 @@ impl App {
                 self.persist_settings();
                 Task::none()
             }
+            Message::StartAtLoginToggled(on) => {
+                match autostart::set(on) {
+                    Ok(()) => {
+                        self.settings.start_at_login = on;
+                        self.persist_settings();
+                    }
+                    Err(e) => {
+                        self.notice = Some(Notice::Error(
+                            t!("notice.autostart_failed", error = e).into(),
+                        ));
+                    }
+                }
+                Task::none()
+            }
             Message::SystemTheme(mode) => {
                 self.system_mode = mode;
                 Task::none()
@@ -757,6 +787,10 @@ impl App {
             }
             tray::Update::Unavailable(reason) => {
                 eprintln!("cryptdeck: no system tray ({reason}); closing the window quits");
+                // Started in the background but nowhere to hide: show the window.
+                if self.window.is_none() {
+                    return self.show_window();
+                }
                 Task::none()
             }
             tray::Update::Event(event) => match event {
@@ -1046,6 +1080,21 @@ impl App {
         if let Some(status) = status {
             col = col.push(text(status).size(12).style(style::muted));
         }
+        let startup = column![
+            text(t!("settings.startup")).size(15).font(SEMIBOLD),
+            checkbox(self.settings.start_at_login)
+                .label(t!("settings.start_at_login"))
+                .style(style::check)
+                .on_toggle_maybe(autostart::supported().then_some(Message::StartAtLoginToggled)),
+            text(if autostart::supported() {
+                t!("settings.start_at_login_hint")
+            } else {
+                t!("settings.start_at_login_unavailable")
+            })
+            .size(12)
+            .style(style::muted),
+        ]
+        .spacing(12);
         let appearance = column![
             text(t!("settings.appearance")).size(15).font(SEMIBOLD),
             row![
@@ -1064,6 +1113,11 @@ impl App {
                 .width(Length::Fill)
                 .style(style::divider),
             col,
+            container(space::horizontal())
+                .height(1)
+                .width(Length::Fill)
+                .style(style::divider),
+            startup,
         ]
         .spacing(20);
         container(col)
